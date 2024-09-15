@@ -40,6 +40,8 @@ result_output.pack(fill="both", expand=True)
 scrollbar.config(command=result_output.yview)
 
 # 定義函數進行排版處理並去除多餘空白行
+
+
 def format_text(text):
     lines = text.splitlines()  # 將文本按行分割
     formatted_text = ""
@@ -49,20 +51,24 @@ def format_text(text):
         if line:  # 只保留非空行
             # 如果是數字，將其加上 "數值結果" 標記
             if any(char.isdigit() for char in line):
-                formatted_text += f"數值結果：{line}\n"
+                formatted_text += f"{line}\n"
             else:
                 formatted_text += f"{line}\n"
 
     return formatted_text
 
 # 定義按鈕的功能：解析HTML並顯示排版後的純文本
+
+
 def extract_text():
     html_content = html_input.get("1.0", "end")  # 獲取輸入框中的HTML內容
     soup = BeautifulSoup(html_content, 'html.parser')  # 使用BeautifulSoup解析HTML
-    pure_text = soup.get_text()  # 提取純文本
+    pure_text = soup.get_text(separator="\n")  # 使用分行符號提取純文本
     formatted_text = format_text(pure_text)  # 對提取的文本進行排版處理並去除多餘空行
     result_output.delete("1.0", "end")  # 清空結果顯示區
     result_output.insert("1.0", formatted_text)  # 將排版後的純文本顯示在結果框中
 
 # 運行主循環
+
+
 window.mainloop()
