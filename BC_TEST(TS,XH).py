@@ -28,7 +28,7 @@ with sync_playwright() as p:
                 page.fill('#LoginId', query)  # 填入当前值
                 page.click('button[data-bind="click: SearchClick, attr: { disabled: SearchLock }"]')
 
-                # 等待1.5秒
+                # 等待1秒
                 time.sleep(1)
 
                 # 等待统计数据显示
@@ -41,7 +41,7 @@ with sync_playwright() as p:
                         return rows.map(row => {
                             const cells = Array.from(row.querySelectorAll('td')).map(cell => cell.innerText);
                             // 将总盈亏乘以 -1
-                            cells[4] = (-1 * parseFloat(cells[4])).toFixed(3);  // 总盈亏在索引4
+                            //cells[4] = (-1 * parseFloat(cells[4])).toFixed(3);  // 总盈亏在索引4
                             return cells;
                         });
                     }
