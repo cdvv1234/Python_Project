@@ -1,0 +1,131 @@
+from flask import Flask, render_template, request, jsonify
+from playwright.sync_api import sync_playwright, TimeoutError
+from datetime import datetime
+import time
+import json
+import os
+
+# 初始化 Flask 應用
+app = Flask(__name__)
+
+# 存储用户数据的文件名
+USER_DATA_FILE = "user_data.json"
+
+# 获取系统日期
+def get_today_date():
+    return datetime.now().strftime("%Y-%m-%d")  # 格式化为 'YYYY-MM-DD'
+
+# 加载用户数据
+def load_user_data():
+    if os.path.exists(USER_DATA_FILE):
+        with open(USER_DATA_FILE, "r") as file:
+            return json.load(file)
+    return {"username": "", "password": ""}
+
+# 保存用户数据
+def save_user_data(username, password):
+    with open(USER_DATA_FILE, "w") as file:
+        json.dump({"username": username, "password": password}, file)
+
+# 登陆和打卡操作
+def login_and_punch_in_or_out(action, username, password):
+    if not username or not password:
+        return {"error": "账号或密码不能为空，请输入完整信息！"}
+
+    try:
+        with sync_playwright() as p:
+            # 启动 Chromium 浏览器
+            browser = p.chromium.launch(headless=True)  # headless=True 使浏览器不可见
+            page = browser.new_page()
+
+            # 打开登录页面
+            page.goto("")
+
+            # 填写账号和密码
+            page.fill("#username", username)
+            page.fill("#password", password)
+
+            # 点击登录按钮
+            page.click("button[type='submit']")
+            page.wait_for_selector('#ReadBulletinModal', state='visible')
+
+            if page.is_visible("#ReadBulletinModal"):
+                close_button = page.locator("#ReadBulletinModal").locator("button.btn.btn-secondary:has-text('关闭')")
+                close_button.click()
+                page.wait_for_selector("#ReadBulletinModal", state="hidden")
+
+            today_date = get_today_date()
+            row_locator = page.locator(f"table tbody tr:has(td:text-is('{today_date}'))")
+            punch_in_time_locator = row_locator.locator("td:nth-child(2)")  # 第二列：签到时间
+            punch_out_time_locator = row_locator.locator("td:nth-child(3)")  # 第三列：签退时间
+
+            punch_in_time = (
+                punch_in_time_locator.inner_text().strip() if punch_in_time_locator.count() > 0 else None
+            )
+            punch_out_time = (
+                punch_out_time_locator.inner_text().strip() if punch_out_time_locator.count() > 0 else None
+            )
+
+            result = {}
+
+            if action == "上班签到":
+                if punch_in_time:
+                    result["message"] = f"今天已签到，签到时间：{punch_in_time}"
+                else:
+                    page.click("#work_btn")
+                    page.wait_for_selector('#ConfirmModal', state='visible')
+                    close_button = page.locator("#ConfirmModal").locator("button.btn-confirm.btn-primary:has-text('确认')")
+                    close_button.click()
+                    page.wait_for_selector("#ConfirmModal", state="hidden")
+                    time.sleep(2)
+                    punch_in_time = punch_in_time_locator.inner_text().strip()
+                    result["message"] = f"上班签到成功，签到时间：{punch_in_time}"
+
+            elif action == "下班签退":
+                if punch_out_time:
+                    result["message"] = f"今天已签退，签退时间：{punch_out_time}"
+                else:
+                    page.click("#off_work_btn")
+                    page.wait_for_selector('#ConfirmModal', state='visible')
+                    close_button = page.locator("#ConfirmModal").locator("button.btn-confirm.btn-primary:has-text('确认')")
+                    close_button.click()
+                    page.wait_for_selector("#ConfirmModal", state="hidden")
+                    time.sleep(2)
+                    punch_out_time = punch_out_time_locator.inner_text().strip()
+                    result["message"] = f"下班签退成功，签退时间：{punch_out_time}"
+
+            browser.close()
+            return result
+
+    except TimeoutError:
+        return {"error": "页面加载超时，请检查网络连接。"}
+    except Exception as e:
+        return {"error": f"发生未知错误：{e}"}
+
+# 主页面路由
+@app.route('/')
+def index():
+    user_data = load_user_data()
+    return render_template('index.html', username=user_data.get("username", ""), password=user_data.get("password", ""))
+
+# 登录和打卡操作接口
+@app.route('/punch', methods=['POST'])
+def punch():
+    # 從請求中獲取 'action' 參數
+    action = request.form.get('action')  # 使用 get() 避免 KeyError
+    username = request.form.get('username')
+    password = request.form.get('password')
+
+    if not action or not username or not password:
+        return jsonify({"error": "請輸入所有必要的信息！"})
+
+    # 保存帳號密碼
+    save_user_data(username, password)
+
+    result = login_and_punch_in_or_out(action, username, password)
+    return jsonify(result)
+
+
+# 运行 Flask 应用
+if __name__ == '__main__':
+    app.run(debug=True)
