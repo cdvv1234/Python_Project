@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>打卡系统</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
+        }
+        .container {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .button-group {
+            display: flex;
+            justify-content: space-between;
+        }
+        button {
+            width: 48%;
+            padding: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:focus {
+            outline: none;
+        }
+        .btn-work {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .btn-off {
+            background-color: #f44336;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>打卡系统</h2>
+        <form id="login-form">
+            <div class="input-group">
+                <label for="username">账号：</label>
+                <input type="text" id="username" name="username" value="{{ username }}" required>
+            </div>
+            <div class="input-group">
+                <label for="password">密码：</label>
+                <input type="password" id="password" name="password" value="{{ password }}" required>
+            </div>
+            <div class="button-group">
+                <button type="button" class="btn-work" onclick="handlePunch('上班签到')">上班签到</button>
+                <button type="button" class="btn-off" onclick="handlePunch('下班签退')">下班签退</button>
+            </div>
+        </form>
+        <div id="result-message" style="margin-top: 20px;"></div>
+    </div>
+
+    <script>
+        function handlePunch(action) {
+        const form = document.getElementById('login-form');
+        const formData = new FormData(form);
+        
+        // 手動添加 'action' 參數
+        formData.append('action', action);
+
+        fetch('/punch', {
+            method: 'POST',
+            body: new URLSearchParams(formData),  // 正確發送表單數據
+        })
+        .then(response => response.json())
+        .then(data => {
+            const messageElement = document.getElementById('result-message');
+            if (data.error) {
+                messageElement.textContent = '错误: ' + data.error;
+                messageElement.style.color = 'red';
+            } else {
+                messageElement.textContent = data.message;
+                messageElement.style.color = 'green';
+            }
+        });
+    }
+
+    </script>
+</body>
+</html>
