@@ -1,0 +1,19 @@
+[
+    {
+        "name": "",
+        "url": "",
+        "username_selector": "input#input-22",
+        "password_selector": "input#input-26",
+        "language_dropdown_selector": "div.v-select__slot",
+        "language_option_selector": "div.v-list-item__title:has-text('简体中文')",
+        "selected_language": "简体中文",
+        "language_to_login_button": {
+            "简体中文": "登入",
+            "English": "Login"
+        },
+        "credentials": {
+            "username": "",
+            "password": ""
+        }
+    }
+]
