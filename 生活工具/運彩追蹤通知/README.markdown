@@ -96,7 +96,6 @@ ptt_tracker/
 
 ## 注意事項
 - **LINE API 配置**：確保正確設置 LINE Messaging API 的認證資訊，否則通知功能將不可用。
-- **PTT 年齡限制**：程式自動繞過 PTT 的年齡驗證（設置 `over18` cookie）。
 - **錯誤處理**：程式包含基本的錯誤處理，若發生問題（如網路錯誤），會在控制台輸出錯誤訊息，並嘗試透過 LINE 通知錯誤。
 - **資料儲存**：已追蹤的文章儲存於 `tracked_posts.json`，確保程式結束後不會重複通知。
 - **執行緒安全**：程式使用多執行緒運行主迴圈和系統托盤，確保穩定運行。
@@ -110,12 +109,6 @@ ptt_tracker/
   - 確保依賴項已正確安裝。
 - **圖標未顯示**：
   - 確認 `icon.ico` 是否存在於程式目錄，或移除自訂圖標以使用預設圖標。
-
-## 貢獻
-歡迎提交問題或改進建議！請透過 GitHub Issues 或 Pull Requests 聯繫。
-
-## 授權
-本專案採用 MIT 授權，詳情請見 `LICENSE` 檔案（若有）。
 
 ---
 
@@ -217,23 +210,6 @@ ptt_tracker/
 
 ## Notes
 - **LINE API Setup**: Ensure LINE Messaging API credentials are correctly configured, or notifications will not work.
-- **PTT Age Restriction**: The script automatically bypasses PTT’s age verification by setting the `over18` cookie.
 - **Error Handling**: Includes basic error handling; errors (e.g., network issues) are logged to the console and notified via LINE if possible.
 - **Data Storage**: Tracked posts are saved in `tracked_posts.json` to prevent duplicate notifications.
 - **Thread Safety**: Uses threading for the main loop and system tray, ensuring stable operation.
-
-## Troubleshooting
-- **LINE Notifications Not Received**:
-  - Verify `LINE_CHANNEL_ACCESS_TOKEN` and `LINE_USER_ID`.
-  - Check network connectivity.
-- **Script Unresponsive**:
-  - Review console output for error messages.
-  - Ensure dependencies are installed correctly.
-- **Icon Not Displaying**:
-  - Confirm `icon.ico` exists in the script directory, or remove it to use the default icon.
-
-## Contributing
-Contributions are welcome! Please submit issues or pull requests via GitHub.
-
-## License
-This project is licensed under the MIT License. See the `LICENSE` file for details (if available).
