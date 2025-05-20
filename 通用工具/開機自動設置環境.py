@@ -75,7 +75,7 @@ def open_vpn_settings():
 # Step 3: 模擬點擊新增 VPN
 def click_add_vpn():
     time.sleep(2)  # 等待設定頁面加載
-    pyautogui.click(1691, 180)  # 這裡需要確定新增按鈕的位置
+    pyautogui.click(1572,264)  # 這裡需要確定新增按鈕的位置
 
 # Step 4: 輸入 VPN 資訊
 def fill_vpn_info(vpn_name, server_address, acc, psk):
@@ -107,7 +107,7 @@ def fill_vpn_info(vpn_name, server_address, acc, psk):
 
 # Step 5: 儲存 VPN 設定
 def save_vpn():
-    pyautogui.click(838, 929)  # 點擊儲存按鈕
+    pyautogui.click(855,931)  # 點擊儲存按鈕
 
 # Step 6: 回到新增 VPN 頁面開始的步驟
 def reset_to_start():
