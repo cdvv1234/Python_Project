@@ -4,23 +4,32 @@ import json
 import os
 from bs4 import BeautifulSoup
 from datetime import datetime
+import threading
+import pystray
+from PIL import Image
+import sys
 
-# Configuration
+# 配置
 TARGET_AUTHORS = ["apparition10", "lotterywin", "bvbin10242"]
 MIN_COMMENTS = 50
-CHECK_INTERVAL = 120  # 2 minutes in seconds (can be adjusted to your preference)
-MAX_CHECK_INTERVAL = 1800  # 30 minutes
+CHECK_INTERVAL = 120  # 2分鐘（秒）
+MAX_CHECK_INTERVAL = 1800  # 30分鐘（秒）
 BASE_URL = "https://www.ptt.cc"
 BOARD_URL = f"{BASE_URL}/bbs/SportLottery/index.html"
 DATA_FILE = "tracked_posts.json"
 
-# LINE Messaging API 設定
+# LINE Messaging API 配置
 LINE_CHANNEL_ID = ""
 LINE_CHANNEL_SECRET = ""
-LINE_CHANNEL_ACCESS_TOKEN = ""  # 你需要填寫這個值
-LINE_USER_ID = ""  # 你需要填寫接收訊息的使用者ID
+LINE_CHANNEL_ACCESS_TOKEN = ""
+LINE_USER_ID = ""
 
-# Initialize tracked posts
+# 初始化執行緒控制
+running = threading.Event()
+running.set()  # 預設為運行狀態
+exit_event = threading.Event()  # 用於結束程式
+
+# 初始化追蹤文章
 def load_tracked_posts():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
@@ -31,18 +40,18 @@ def save_tracked_posts(data):
     with open(DATA_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-# Function to get cookies (PTT age verification)
+# 獲取PTT Cookie（年齡驗證）
 def get_ptt_cookies():
     response = requests.get(BASE_URL)
     cookies = response.cookies
     if 'over18' not in cookies:
-        cookies.set('over18', '1')  # Set over18 cookie to bypass age verification
+        cookies.set('over18', '1')  # 繞過年齡限制
     return cookies
 
-# Function to send LINE message using Messaging API
+# 發送LINE訊息
 def send_line_message(message):
     if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_USER_ID:
-        print("LINE Channel Access Token or User ID not set. Skipping notification.")
+        print("未設置LINE Channel Access Token或User ID，跳過通知。")
         return
     
     headers = {
@@ -50,7 +59,7 @@ def send_line_message(message):
         "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}"
     }
     
-    # 將訊息拆分成多個部分，確保不超過LINE的訊息長度限制
+    # 拆分訊息以避免超過LINE長度限制
     message_chunks = [message[i:i+2000] for i in range(0, len(message), 2000)]
     
     for chunk in message_chunks:
@@ -71,25 +80,23 @@ def send_line_message(message):
         )
         
         if response.status_code == 200:
-            print("LINE Message sent successfully")
+            print("LINE訊息發送成功")
         else:
-            print(f"Failed to send LINE Message: {response.status_code} {response.text}")
-            print(f"Response: {response.json()}")
+            print(f"LINE訊息發送失敗: {response.status_code} {response.text}")
 
-# Function to fetch and parse a page
+# 獲取並解析頁面
 def fetch_page(url, cookies):
     try:
         response = requests.get(url, cookies=cookies)
         response.raise_for_status()
         return BeautifulSoup(response.text, 'html.parser')
     except Exception as e:
-        print(f"Error fetching {url}: {e}")
+        print(f"獲取頁面 {url} 時錯誤: {e}")
         return None
 
-# Function to extract post information
+# 提取文章資訊
 def extract_post_info(post_element):
     try:
-        # Extract the title and remove "[公告]" tags
         title_element = post_element.select_one('.title a')
         if not title_element:
             return None
@@ -97,20 +104,20 @@ def extract_post_info(post_element):
         title = title_element.text.strip()
         link = title_element.get('href')
         
-        # Skip LIVE posts, 活動 posts, and 公告 posts
+        # 排除LIVE、活動和公告文章
         if any(tag in title for tag in ["[LIVE]", "[活動]", "[公告]"]):
             return None
         
-        # Extract author
+        # 提取作者
         meta_elements = post_element.select('.meta .author')
         author = meta_elements[0].text.strip() if meta_elements else "Unknown"
         
-        # Extract comment count from nrec element
+        # 提取推文數
         nrec = post_element.select_one('.nrec')
         comment_count = 0
         if nrec and nrec.text:
             if nrec.text == '爆':
-                comment_count = 100  # "爆" usually means 100+ comments
+                comment_count = 100
             elif nrec.text.isdigit():
                 comment_count = int(nrec.text)
         
@@ -122,23 +129,20 @@ def extract_post_info(post_element):
             "discovered_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
     except Exception as e:
-        print(f"Error extracting post info: {e}")
+        print(f"提取文章資訊時錯誤: {e}")
         return None
 
-# Function to check if a post meets our criteria
+# 檢查文章是否符合條件
 def post_meets_criteria(post):
     if not post:
         return False
     
-    # Check if the author is one we're tracking
     author_match = post["author"] in TARGET_AUTHORS
-    
-    # Check if the post has enough comments and is not a LIVE post
     comment_match = post["comment_count"] >= MIN_COMMENTS and "[LIVE]" not in post["title"]
     
     return author_match or comment_match
 
-# Function to scan multiple pages
+# 掃描多個頁面
 def scan_pages(cookies, num_pages=3):
     new_posts = []
     current_url = BOARD_URL
@@ -148,14 +152,12 @@ def scan_pages(cookies, num_pages=3):
         if not soup:
             continue
         
-        # Get all posts on the page
         posts = soup.select('.r-ent')
         for post_element in posts:
             post_info = extract_post_info(post_element)
             if post_info and post_meets_criteria(post_info):
                 new_posts.append(post_info)
         
-        # Get the link to the previous page
         prev_link = soup.select_one('.btn.wide:nth-of-type(2)')
         if prev_link and 'href' in prev_link.attrs:
             current_url = BASE_URL + prev_link['href']
@@ -164,34 +166,29 @@ def scan_pages(cookies, num_pages=3):
     
     return new_posts
 
-# Main function
-def main():
-    print(f"PTT SportLottery Tracker started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Tracking authors: {', '.join(TARGET_AUTHORS)}")
-    print(f"Tracking posts with {MIN_COMMENTS}+ comments (excluding LIVE posts)")
-    print(f"Check interval: {CHECK_INTERVAL}-{MAX_CHECK_INTERVAL} seconds")
+# 主迴圈（在獨立執行緒中運行）
+def main_loop():
+    print(f"PTT SportLottery 追蹤器啟動於 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"追蹤作者: {', '.join(TARGET_AUTHORS)}")
+    print(f"追蹤推文數大於等於 {MIN_COMMENTS} 的文章（排除LIVE文章）")
+    print(f"檢查間隔: {CHECK_INTERVAL}-{MAX_CHECK_INTERVAL} 秒")
     
     tracked_data = load_tracked_posts()
     tracked_urls = [post["link"] for post in tracked_data["posts"]]
     cookies = get_ptt_cookies()
     
-    try:
-        while True:
-            print(f"\nChecking for new posts at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}...")
+    while not exit_event.is_set():
+        if running.is_set():
+            print(f"\n於 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} 檢查新文章...")
             
-            # Scan the first few pages
             new_posts = scan_pages(cookies)
-            
-            # Filter out posts we've already tracked
             truly_new_posts = [post for post in new_posts if post["link"] not in tracked_urls]
             
             if truly_new_posts:
-                # Update our tracking data
                 tracked_data["posts"].extend(truly_new_posts)
                 tracked_urls.extend([post["link"] for post in truly_new_posts])
                 save_tracked_posts(tracked_data)
                 
-                # Prepare notification
                 notification = "\n🏆 新的 PTT SportLottery 文章 🏆\n\n"
                 for post in truly_new_posts:
                     notification += f"📌 {post['title']}\n"
@@ -201,18 +198,67 @@ def main():
                 
                 print(notification)
                 send_line_message(notification)
-                print(f"Found {len(truly_new_posts)} new posts")
+                print(f"找到 {len(truly_new_posts)} 篇新文章")
             else:
-                print("No new posts found")
-            
-            # Wait for the next check
-            time.sleep(CHECK_INTERVAL)
-    
-    except KeyboardInterrupt:
-        print("\nTracker stopped by user")
+                print("未找到新文章")
+        
+        # 等待下一次檢查或檢查退出信號
+        for _ in range(CHECK_INTERVAL):
+            if exit_event.is_set():
+                break
+            time.sleep(1)
+
+# 系統托盤設置
+def create_tray_icon():
+    # 加載圖標
+    try:
+        icon_path = os.path.join(os.path.dirname(__file__), "icon.ico")
+        image = Image.open(icon_path)
     except Exception as e:
-        print(f"Error in main loop: {e}")
-        send_line_message(f"⚠️ PTT Tracker 錯誤: {str(e)}")
+        print(f"無法加載圖標: {e}，使用預設圖標")
+        image = Image.new('RGB', (64, 64), color='blue')  # 預設藍色方塊
+    
+    # 定義托盤選單
+    def on_pause(icon, item):
+        running.clear()
+        print("程式已暫停")
+    
+    def on_resume(icon, item):
+        running.set()
+        print("程式已繼續")
+    
+    def on_exit(icon, item):
+        print("結束程式")
+        exit_event.set()  # 設置退出信號
+        icon.stop()  # 停止托盤圖標
+    
+    menu = (
+        pystray.MenuItem("繼續執行", on_resume, enabled=lambda item: not running.is_set()),
+        pystray.MenuItem("暫停", on_pause, enabled=lambda item: running.is_set()),
+        pystray.MenuItem("結束程式", on_exit)
+    )
+    
+    # 創建托盤圖標
+    icon = pystray.Icon("PTT Tracker", image, "PTT SportLottery Tracker", menu)
+    return icon
+
+# 主程式
+def main():
+    # 啟動主迴圈執行緒
+    main_thread = threading.Thread(target=main_loop, daemon=True)
+    main_thread.start()
+    
+    # 創建並運行系統托盤
+    tray_icon = create_tray_icon()
+    tray_icon.run()
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("程式被使用者中斷")
+        exit_event.set()
+    except Exception as e:
+        print(f"主程式錯誤: {e}")
+        send_line_message(f"⚠️ PTT Tracker 錯誤: {str(e)}")
+        exit_event.set()
