@@ -9,7 +9,7 @@ PTT SportLottery 追蹤器是一個 Python 腳本，用於監控台灣 PTT 論�
 - **LINE 通知**：當發現符合條件的文章時，透過 LINE 發送包含標題、作者、推文數和連結的通知。
 - **系統托盤**：提供系統托盤圖標，支援暫停、繼續和結束程式的操作。
 - **資料持久化**：將已追蹤的文章儲存至本地的 JSON 檔案，避免重複通知。
-- **靈活檢查間隔**：每 2 分鐘檢查一次新文章，最大間隔為 30 分鐘。
+- **靈活檢查間隔**：每 30 分鐘檢查一次新文章。
 
 ## 依賴項
 - Python 3.6 或以上
@@ -123,7 +123,7 @@ The PTT SportLottery Tracker is a Python script designed to monitor the SportLot
 - **LINE Notifications**: Sends notifications via LINE with post title, author, comment count, and link.
 - **System Tray**: Provides a system tray icon for pausing, resuming, or exiting the program.
 - **Data Persistence**: Stores tracked posts in a local JSON file to avoid duplicate notifications.
-- **Flexible Interval**: Checks for new posts every 2 minutes, with a maximum interval of 30 minutes.
+- **Flexible Interval**: Checks for new posts every 30 minutes.
 
 ## Dependencies
 - Python 3.6 or higher
