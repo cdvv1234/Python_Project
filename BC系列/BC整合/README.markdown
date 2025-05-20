@@ -81,9 +81,6 @@ BC整合/
 - 程式 3 僅支援 CJ 網站，需檢查 `program3.py` 的網站配置。
 - 定期清理錯誤截圖以管理磁盤空間。
 
-## 聯繫方式
-
-如有問題，請聯繫：[your-email@example.com]。
 
 ---
 
@@ -169,7 +166,3 @@ BC整合/
 - Program 2 requires an input Excel file with `帐号`, `领取日期`, `起始日期`, and `迄止日期` columns.
 - Program 3 only supports the CJ site; verify site configuration in `program3.py`.
 - Periodically clear error screenshots to manage disk space.
-
-## Contact
-
-For issues, contact: [your-email@example.com].
