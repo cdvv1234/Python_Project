@@ -37,13 +37,40 @@ def create_folders(selected_groups, folder_groups):
 def load_folder_groups():
     json_file = "folder_groups.json"
     default_groups = {
-        "1. - 1、2、4、5": ["01", "02", "04", "05"],
-        "2. - 6、8、9、12": ["06", "08", "09", "12"],
-        "3. - 14、17、19、22": ["14", "17", "19", "22"],
-        "4. - 27、28、31、32": ["27", "28", "31", "32"],
-        "5. - 33、34、35、36": ["33", "34", "35", "36"],
-        "6.- 37、38、ICT02、TG1、TG2": ["37", "38", "ICT02", "TG1", "TG2"]
-    }
+    "1. - AP1、AP2、AP4、AP5": [
+        "AP1",
+        "AP2",
+        "AP4",
+        "AP5"
+    ],
+    "2. - AP6、AP14、AP17": [
+        "AP6",
+        "AP14",
+        "AP17"
+    ],
+    "3. - AP19、AP22、AP27、AP28": [
+        "AP19",
+        "AP22",
+        "AP27",
+        "AP28"
+    ],
+    "4. - AP32、AP33、AP34": [
+        "AP32",
+        "AP33",
+        "AP34"
+    ],
+    "5. - AP35、AP37、AP38、AP40": [
+        "AP35",
+        "AP37",
+        "AP38",
+        "AP40"
+    ],
+    "6. - ICT02、TG1、TG2": [
+        "ICT02",
+        "TG1",
+        "TG2"
+    ]
+}
     
     # 檢查 JSON 檔案是否存在
     if not os.path.exists(json_file):
@@ -117,9 +144,7 @@ def reset_to_start():
 # Step 7: 新增多組 VPN 連線
 def add_vpns():
     vpn_list = [
-        {"name": "", "server": "", "account": "", "password": ""},
-        {"name": "", "server": "", "account": "", "password": ""},
-        {"name": "", "server": "", "account": "", "password": ""}
+        {"name": "", "server": "9", "account": "", "password": ""},
     ]
     
     open_vpn_settings()
