@@ -97,8 +97,8 @@ def extract_post_info(post_element):
         title = title_element.text.strip()
         link = title_element.get('href')
         
-        # Skip LIVE posts
-        if "[LIVE]" in title:
+        # Skip LIVE posts, 活動 posts, and 公告 posts
+        if any(tag in title for tag in ["[LIVE]", "[活動]", "[公告]"]):
             return None
         
         # Extract author
