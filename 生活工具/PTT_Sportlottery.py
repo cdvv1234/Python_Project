@@ -105,7 +105,7 @@ def extract_post_info(post_element):
         link = title_element.get('href')
         
         # 排除LIVE、活動和公告文章
-        if any(tag in title for tag in ["[LIVE]", "[活動]", "[公告]"]):
+        if any(tag in title for tag in ["[LIVE]", "[活動]", "[公告]", "[實況]"]):
             return None
         
         # 提取作者
