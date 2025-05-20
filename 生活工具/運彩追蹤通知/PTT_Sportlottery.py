@@ -12,8 +12,7 @@ import sys
 # 配置
 TARGET_AUTHORS = ["apparition10", "lotterywin", "bvbin10242"]
 MIN_COMMENTS = 50
-CHECK_INTERVAL = 120  # 2分鐘（秒）
-MAX_CHECK_INTERVAL = 1800  # 30分鐘（秒）
+CHECK_INTERVAL = 1800  # 30分鐘（秒）
 BASE_URL = "https://www.ptt.cc"
 BOARD_URL = f"{BASE_URL}/bbs/SportLottery/index.html"
 DATA_FILE = "tracked_posts.json"
@@ -171,7 +170,7 @@ def main_loop():
     print(f"PTT SportLottery 追蹤器啟動於 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"追蹤作者: {', '.join(TARGET_AUTHORS)}")
     print(f"追蹤推文數大於等於 {MIN_COMMENTS} 的文章（排除LIVE文章）")
-    print(f"檢查間隔: {CHECK_INTERVAL}-{MAX_CHECK_INTERVAL} 秒")
+    print(f"檢查間隔: {CHECK_INTERVAL} 秒")
     
     tracked_data = load_tracked_posts()
     tracked_urls = [post["link"] for post in tracked_data["posts"]]
