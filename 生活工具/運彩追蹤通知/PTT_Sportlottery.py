@@ -8,14 +8,19 @@ import threading
 import pystray
 from PIL import Image
 import sys
+import tkinter as tk
+from tkinter import messagebox
 
-# 配置
-TARGET_AUTHORS = ["apparition10", "lotterywin", "bvbin10242"]
-MIN_COMMENTS = 50
-CHECK_INTERVAL = 1800  # 30分鐘（秒）
-BASE_URL = "https://www.ptt.cc"
-BOARD_URL = f"{BASE_URL}/bbs/SportLottery/index.html"
+# 配置文件路徑
+CONFIG_FILE = "config.json"
 DATA_FILE = "tracked_posts.json"
+
+# 預設配置
+DEFAULT_CONFIG = {
+    "target_authors": ["apparition10", "lotterywin", "bvbin10242"],
+    "min_comments": 50,
+    "check_interval": 1800
+}
 
 # LINE Messaging API 配置
 LINE_CHANNEL_ID = ""
@@ -23,10 +28,94 @@ LINE_CHANNEL_SECRET = ""
 LINE_CHANNEL_ACCESS_TOKEN = ""
 LINE_USER_ID = ""
 
+# 全局配置變數
+config = {}
+
 # 初始化執行緒控制
 running = threading.Event()
-running.set()  # 預設為運行狀態
-exit_event = threading.Event()  # 用於結束程式
+running.set()
+exit_event = threading.Event()
+
+# 載入或初始化配置文件
+def load_config():
+    global config
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+    else:
+        config = DEFAULT_CONFIG.copy()
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+    return config
+
+# 保存配置
+def save_config():
+    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+
+# 修改配置（使用單一視窗，多行輸入框，按鈕同一行）
+def modify_config(icon):
+    root = tk.Tk()
+    root.title("修改配置")
+    root.geometry("400x300")
+    root.resizable(False, False)
+
+    try:
+        # 追蹤作者（多行輸入框）
+        tk.Label(root, text="追蹤作者（每行一個或用逗號分隔）：").pack(pady=5)
+        authors_text = tk.Text(root, height=5, width=40)
+        authors_text.pack(pady=5)
+        authors_text.insert(tk.END, "\n".join(config["target_authors"]))
+
+        # 最低推文數
+        tk.Label(root, text="最低推文數：").pack(pady=5)
+        comments_entry = tk.Entry(root, width=40)
+        comments_entry.pack(pady=5)
+        comments_entry.insert(0, str(config["min_comments"]))
+
+        # 檢查間隔
+        tk.Label(root, text="檢查間隔（秒）：").pack(pady=5)
+        interval_entry = tk.Entry(root, width=40)
+        interval_entry.pack(pady=5)
+        interval_entry.insert(0, str(config["check_interval"]))
+
+        # 按鈕框架（確認和取消按鈕同一行）
+        button_frame = tk.Frame(root)
+        button_frame.pack(pady=10)
+
+        def save_changes():
+            try:
+                authors_input = authors_text.get("1.0", tk.END).strip()
+                authors = [a.strip() for a in authors_input.replace(",", "\n").split("\n") if a.strip()]
+                if not authors:
+                    raise ValueError("請至少輸入一個作者")
+                config["target_authors"] = authors
+
+                min_comments = comments_entry.get().strip()
+                if not min_comments.isdigit() or int(min_comments) < 0:
+                    raise ValueError("推文數必須是非負整數")
+                config["min_comments"] = int(min_comments)
+
+                check_interval = interval_entry.get().strip()
+                if not check_interval.isdigit() or int(check_interval) < 1:
+                    raise ValueError("檢查間隔必須是大於0的整數")
+                config["check_interval"] = int(check_interval)
+
+                save_config()
+                print(f"配置已更新: {config}")
+                messagebox.showinfo("成功", "配置已更新！")
+                root.destroy()
+            except ValueError as e:
+                messagebox.showerror("錯誤", str(e))
+
+        tk.Button(button_frame, text="確認", command=save_changes).pack(side=tk.LEFT, padx=10)
+        tk.Button(button_frame, text="取消", command=root.destroy).pack(side=tk.LEFT, padx=10)
+
+        root.mainloop()
+
+    except Exception as e:
+        messagebox.showerror("錯誤", f"修改配置時發生錯誤: {e}")
+        root.destroy()
 
 # 初始化追蹤文章
 def load_tracked_posts():
@@ -41,10 +130,10 @@ def save_tracked_posts(data):
 
 # 獲取PTT Cookie（年齡驗證）
 def get_ptt_cookies():
-    response = requests.get(BASE_URL)
+    response = requests.get("https://www.ptt.cc")
     cookies = response.cookies
     if 'over18' not in cookies:
-        cookies.set('over18', '1')  # 繞過年齡限制
+        cookies.set('over18', '1')
     return cookies
 
 # 發送LINE訊息
@@ -58,18 +147,12 @@ def send_line_message(message):
         "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}"
     }
     
-    # 拆分訊息以避免超過LINE長度限制
     message_chunks = [message[i:i+2000] for i in range(0, len(message), 2000)]
     
     for chunk in message_chunks:
         payload = {
             "to": LINE_USER_ID,
-            "messages": [
-                {
-                    "type": "text",
-                    "text": chunk
-                }
-            ]
+            "messages": [{"type": "text", "text": chunk}]
         }
         
         response = requests.post(
@@ -103,15 +186,12 @@ def extract_post_info(post_element):
         title = title_element.text.strip()
         link = title_element.get('href')
         
-        # 排除LIVE、活動和公告文章
         if any(tag in title for tag in ["[LIVE]", "[活動]", "[公告]", "[實況]"]):
             return None
         
-        # 提取作者
         meta_elements = post_element.select('.meta .author')
         author = meta_elements[0].text.strip() if meta_elements else "Unknown"
         
-        # 提取推文數
         nrec = post_element.select_one('.nrec')
         comment_count = 0
         if nrec and nrec.text:
@@ -123,7 +203,7 @@ def extract_post_info(post_element):
         return {
             "title": title,
             "author": author,
-            "link": BASE_URL + link if link else None,
+            "link": "https://www.ptt.cc" + link if link else None,
             "comment_count": comment_count,
             "discovered_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
@@ -136,15 +216,15 @@ def post_meets_criteria(post):
     if not post:
         return False
     
-    author_match = post["author"] in TARGET_AUTHORS
-    comment_match = post["comment_count"] >= MIN_COMMENTS and "[LIVE]" not in post["title"]
+    author_match = post["author"] in config["target_authors"]
+    comment_match = post["comment_count"] >= config["min_comments"] and "[LIVE]" not in post["title"]
     
     return author_match or comment_match
 
 # 掃描多個頁面
 def scan_pages(cookies, num_pages=3):
     new_posts = []
-    current_url = BOARD_URL
+    current_url = "https://www.ptt.cc/bbs/SportLottery/index.html"
     
     for _ in range(num_pages):
         soup = fetch_page(current_url, cookies)
@@ -159,18 +239,19 @@ def scan_pages(cookies, num_pages=3):
         
         prev_link = soup.select_one('.btn.wide:nth-of-type(2)')
         if prev_link and 'href' in prev_link.attrs:
-            current_url = BASE_URL + prev_link['href']
+            current_url = "https://www.ptt.cc" + prev_link['href']
         else:
             break
     
     return new_posts
 
-# 主迴圈（在獨立執行緒中運行）
+# 主迴圈
 def main_loop():
+    load_config()
     print(f"PTT SportLottery 追蹤器啟動於 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"追蹤作者: {', '.join(TARGET_AUTHORS)}")
-    print(f"追蹤推文數大於等於 {MIN_COMMENTS} 的文章（排除LIVE文章）")
-    print(f"檢查間隔: {CHECK_INTERVAL} 秒")
+    print(f"追蹤作者: {', '.join(config['target_authors'])}")
+    print(f"追蹤推文數大於等於 {config['min_comments']} 的文章（排除LIVE文章）")
+    print(f"檢查間隔: {config['check_interval']} 秒")
     
     tracked_data = load_tracked_posts()
     tracked_urls = [post["link"] for post in tracked_data["posts"]]
@@ -201,23 +282,20 @@ def main_loop():
             else:
                 print("未找到新文章")
         
-        # 等待下一次檢查或檢查退出信號
-        for _ in range(CHECK_INTERVAL):
+        for _ in range(config["check_interval"]):
             if exit_event.is_set():
                 break
             time.sleep(1)
 
 # 系統托盤設置
 def create_tray_icon():
-    # 加載圖標
     try:
         icon_path = os.path.join(os.path.dirname(__file__), "icon.ico")
         image = Image.open(icon_path)
     except Exception as e:
         print(f"無法加載圖標: {e}，使用預設圖標")
-        image = Image.new('RGB', (64, 64), color='blue')  # 預設藍色方塊
+        image = Image.new('RGB', (64, 64), color='blue')
     
-    # 定義托盤選單
     def on_pause(icon, item):
         running.clear()
         print("程式已暫停")
@@ -228,26 +306,26 @@ def create_tray_icon():
     
     def on_exit(icon, item):
         print("結束程式")
-        exit_event.set()  # 設置退出信號
-        icon.stop()  # 停止托盤圖標
+        exit_event.set()
+        icon.stop()
+    
+    def on_modify_config(icon, item):
+        modify_config(icon)
     
     menu = (
         pystray.MenuItem("繼續執行", on_resume, enabled=lambda item: not running.is_set()),
         pystray.MenuItem("暫停", on_pause, enabled=lambda item: running.is_set()),
+        pystray.MenuItem("修改配置", on_modify_config),
         pystray.MenuItem("結束程式", on_exit)
     )
     
-    # 創建托盤圖標
     icon = pystray.Icon("PTT Tracker", image, "PTT SportLottery Tracker", menu)
     return icon
 
 # 主程式
 def main():
-    # 啟動主迴圈執行緒
     main_thread = threading.Thread(target=main_loop, daemon=True)
     main_thread.start()
-    
-    # 創建並運行系統托盤
     tray_icon = create_tray_icon()
     tray_icon.run()
 
