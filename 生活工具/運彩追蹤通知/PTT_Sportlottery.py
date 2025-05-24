@@ -7,7 +7,6 @@ from datetime import datetime
 import threading
 import pystray
 from PIL import Image
-import sys
 import tkinter as tk
 from tkinter import messagebox
 
@@ -17,12 +16,12 @@ DATA_FILE = "tracked_posts.json"
 
 # 預設配置
 DEFAULT_CONFIG = {
-    "target_authors": ["apparition10", "lotterywin", "bvbin10242"],
+    "target_authors": ["apparition10", "lotterywin", "bvbin10242","qbb741000","binbinyolee"],
     "min_comments": 50,
-    "check_interval": 1800
+    "check_interval": 600
 }
 
-# LINE Messaging API 配置
+# LINE Messaging API 配置,
 LINE_CHANNEL_ID = ""
 LINE_CHANNEL_SECRET = ""
 LINE_CHANNEL_ACCESS_TOKEN = ""
