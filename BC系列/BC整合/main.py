@@ -4,6 +4,7 @@ import program1
 import program2
 import program3
 import program4
+import program5
 from playwright.sync_api import sync_playwright
 from tkinter import font as tkFont
 import time
@@ -28,6 +29,7 @@ class MainApp:
         self.btn2 = None
         self.btn3 = None
         self.btn4 = None
+        self.btn5 = None
         
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.create_main_interface()
@@ -50,6 +52,9 @@ class MainApp:
 
         self.btn4 = tk.Button(function_frame, text="審單DATA抓取", command=lambda: program4.run_program(self.root, self.selected_sites, self.pages), width=20, height=2, state="disabled")
         self.btn4.pack(pady=5)
+
+        self.btn5 = tk.Button(function_frame, text="直屬及下級盈虧查詢", command=lambda: program5.run_program_5(self.root, self.selected_sites, self.pages), width=20, height=2, state="disabled")
+        self.btn5.pack(pady=5)
 
         site_frame = tk.Frame(self.root)
         site_frame.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
@@ -96,32 +101,29 @@ class MainApp:
         for i in range(3):
             window.grid_rowconfigure(i, weight=1)
 
-        # 帳號和密碼輸入框，使用 Frame 和 pack 佈局以縮小間距，並置中
-        input_container = tk.Frame(window)
-        input_container.grid(row=3, column=0, columnspan=3, pady=5)
+        # 帳號和密碼輸入框，進一步縮小間距
+        account_label = tk.Label(window, text="帳號：", font=custom_font)
+        account_label.grid(row=3, column=0, padx=2, pady=5, sticky="e")
+        account_entry = tk.Entry(window, width=30, font=custom_font)
+        account_entry.grid(row=3, column=1, columnspan=2, padx=2, pady=5)
 
-        account_frame = tk.Frame(input_container)
-        account_frame.pack(pady=5)
-        account_label = tk.Label(account_frame, text="帳號：", font=custom_font)
-        account_label.pack(side="left")
-        account_entry = tk.Entry(account_frame, width=30, font=custom_font)
-        account_entry.pack(side="left", padx=0)
-
-        password_frame = tk.Frame(input_container)
-        password_frame.pack(pady=5)
-        password_label = tk.Label(password_frame, text="密碼：", font=custom_font)
-        password_label.pack(side="left")
-        password_entry = tk.Entry(password_frame, width=30, font=custom_font, show="*")
-        password_entry.pack(side="left", padx=0)
+        password_label = tk.Label(window, text="密碼：", font=custom_font)
+        password_label.grid(row=4, column=0, padx=2, pady=5, sticky="e")
+        password_entry = tk.Entry(window, width=30, font=custom_font, show="*")
+        password_entry.grid(row=4, column=1, columnspan=2, padx=2, pady=5)
 
         def confirm_selection():
             # 先獲取帳號和密碼的值
             username = account_entry.get()
             password = password_entry.get()
-            # 然後銷毀窗口
-            window.destroy()
-            # 檢查是否選擇了站台
+            
+            # 獲取選擇的站台
             self.selected_sites = [site for site in sites if next((var.get() for name, var in checkbox_vars if name == site["name"]), False)]
+            
+            # 銷毀視窗
+            window.destroy()
+            
+            # 檢查是否選擇了站台
             if not self.selected_sites:
                 messagebox.showinfo("提示", "未選擇任何站台。")
             else:
@@ -149,7 +151,7 @@ class MainApp:
 
     def open_browsers_with_login(self, username, password):
         self.playwright = sync_playwright().start()
-        self.browser = self.playwright.chromium.launch(headless=False)
+        self.browser = self.playwright.chromium.launch(headless=False)  # 移除 executable_path
         self.pages = []
         for site in self.selected_sites:
             page = self.browser.new_page()
@@ -179,6 +181,7 @@ class MainApp:
         self.btn2.config(state="normal")
         self.btn3.config(state="normal")
         self.btn4.config(state="normal")
+        self.btn5.config(state="normal")
         self.close_site_button.config(state="normal")
         self.open_site_button.config(state="disabled")
 
@@ -199,6 +202,7 @@ class MainApp:
         self.btn2.config(state="disabled")
         self.btn3.config(state="disabled")
         self.btn4.config(state="disabled")
+        self.btn5.config(state="disabled")
         self.close_site_button.config(state="disabled")
         self.open_site_button.config(state="normal")
 
