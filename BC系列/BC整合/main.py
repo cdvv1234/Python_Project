@@ -5,13 +5,14 @@ import program2
 import program3
 import program4
 import program5
+import program6
 from playwright.sync_api import sync_playwright
 from tkinter import font as tkFont
 import time
 
 # 所有站台列表
 sites = [
-    {"name": "TC", "url": ""},
+    {"name": "TC", "url": ""}
 ]
 
 class MainApp:
@@ -30,6 +31,7 @@ class MainApp:
         self.btn3 = None
         self.btn4 = None
         self.btn5 = None
+        self.btn6 = None
         
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.create_main_interface()
@@ -56,6 +58,9 @@ class MainApp:
         self.btn5 = tk.Button(function_frame, text="直屬及下級盈虧查詢", command=lambda: program5.run_program_5(self.root, self.selected_sites, self.pages), width=20, height=2, state="disabled")
         self.btn5.pack(pady=5)
 
+        self.btn6 = tk.Button(function_frame, text="招商觀察", command=lambda: program6.run_program_6(self.root, self.selected_sites, self.pages), width=20, height=2, state="disabled")
+        self.btn6.pack(pady=5)
+
         site_frame = tk.Frame(self.root)
         site_frame.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
 
@@ -81,10 +86,10 @@ class MainApp:
         window.geometry("600x400")
         custom_font = tkFont.Font(family="Arial", size=12)
 
-        # 勾選站台部分，根據圖片重新排列為 3 列
+        # 勾選站台部分，調整為新的佈局
         checkbox_vars = []
         site_layout = [
-            [("TC", 0, 0), ("SY", 0, 1), ("XC", 0, 2)],
+            [("TC", 0, 0), ("SY", 0, 1), ("XC", 0, 2), ("CY", 0, 3)],
             [("TF", 1, 0), ("FL", 1, 1), ("XH", 1, 2)],
             [("TS", 2, 0), ("WX", 2, 1), ("CJ", 2, 2)]
         ]
@@ -96,26 +101,28 @@ class MainApp:
                 checkbox_vars.append((site_name, var))
 
         # 設置列權重以均勻分配空間
-        for i in range(3):
+        for i in range(4):
             window.grid_columnconfigure(i, weight=1)
         for i in range(3):
             window.grid_rowconfigure(i, weight=1)
 
-        # 帳號和密碼輸入框，進一步縮小間距
+        # 帳號和密碼輸入框，進一步縮小間距，並添加預設值
+        account_var = tk.StringVar(value="")  # 預設帳號
         account_label = tk.Label(window, text="帳號：", font=custom_font)
         account_label.grid(row=3, column=0, padx=2, pady=5, sticky="e")
-        account_entry = tk.Entry(window, width=30, font=custom_font)
-        account_entry.grid(row=3, column=1, columnspan=2, padx=2, pady=5)
+        account_entry = tk.Entry(window, width=30, font=custom_font, textvariable=account_var)
+        account_entry.grid(row=3, column=1, columnspan=3, padx=2, pady=5)
 
+        password_var = tk.StringVar(value="")  # 預設密碼
         password_label = tk.Label(window, text="密碼：", font=custom_font)
         password_label.grid(row=4, column=0, padx=2, pady=5, sticky="e")
-        password_entry = tk.Entry(window, width=30, font=custom_font, show="*")
-        password_entry.grid(row=4, column=1, columnspan=2, padx=2, pady=5)
+        password_entry = tk.Entry(window, width=30, font=custom_font, show="*", textvariable=password_var)
+        password_entry.grid(row=4, column=1, columnspan=3, padx=2, pady=5)
 
         def confirm_selection():
-            # 先獲取帳號和密碼的值
-            username = account_entry.get()
-            password = password_entry.get()
+            # 獲取帳號和密碼的值
+            username = account_var.get()
+            password = password_var.get()
             
             # 獲取選擇的站台
             self.selected_sites = [site for site in sites if next((var.get() for name, var in checkbox_vars if name == site["name"]), False)]
@@ -134,7 +141,7 @@ class MainApp:
 
         # 確定和取消按鈕置中
         button_frame = tk.Frame(window)
-        button_frame.grid(row=5, column=0, columnspan=3, pady=20)
+        button_frame.grid(row=5, column=0, columnspan=4, pady=20)
 
         submit_button = tk.Button(button_frame, text="確定", command=confirm_selection, font=custom_font, width=10)
         submit_button.pack(side="left", padx=10)
@@ -146,12 +153,13 @@ class MainApp:
         window.grid_columnconfigure(0, weight=2)
         window.grid_columnconfigure(1, weight=1)
         window.grid_columnconfigure(2, weight=1)
+        window.grid_columnconfigure(3, weight=1)
 
         window.wait_window()
 
     def open_browsers_with_login(self, username, password):
         self.playwright = sync_playwright().start()
-        self.browser = self.playwright.chromium.launch(headless=False)  # 移除 executable_path
+        self.browser = self.playwright.chromium.launch(headless=False)
         self.pages = []
         for site in self.selected_sites:
             page = self.browser.new_page()
@@ -182,6 +190,7 @@ class MainApp:
         self.btn3.config(state="normal")
         self.btn4.config(state="normal")
         self.btn5.config(state="normal")
+        self.btn6.config(state="normal")
         self.close_site_button.config(state="normal")
         self.open_site_button.config(state="disabled")
 
@@ -203,6 +212,7 @@ class MainApp:
         self.btn3.config(state="disabled")
         self.btn4.config(state="disabled")
         self.btn5.config(state="disabled")
+        self.btn6.config(state="disabled")
         self.close_site_button.config(state="disabled")
         self.open_site_button.config(state="normal")
 
