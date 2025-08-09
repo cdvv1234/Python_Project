@@ -37,40 +37,40 @@ def create_folders(selected_groups, folder_groups):
 def load_folder_groups():
     json_file = "folder_groups.json"
     default_groups = {
-    "1. - AP1、AP2、AP4、AP5": [
-        "AP1",
-        "AP2",
-        "AP4",
-        "AP5"
-    ],
-    "2. - AP6、AP14、AP17": [
-        "AP6",
-        "AP14",
-        "AP17"
-    ],
-    "3. - AP19、AP22、AP27、AP28": [
-        "AP19",
-        "AP22",
-        "AP27",
-        "AP28"
-    ],
-    "4. - AP32、AP33、AP34": [
-        "AP32",
-        "AP33",
-        "AP34"
-    ],
-    "5. - AP35、AP37、AP38、AP40": [
-        "AP35",
-        "AP37",
-        "AP38",
-        "AP40"
-    ],
-    "6. - ICT02、TG1、TG2": [
-        "ICT02",
-        "TG1",
-        "TG2"
-    ]
-}
+        "1. - AP1、AP2、AP4、AP5": [
+            "AP1",
+            "AP2",
+            "AP4",
+            "AP5"
+        ],
+        "2. - AP6、AP14、AP17": [
+            "AP6",
+            "AP14",
+            "AP17"
+        ],
+        "3. - AP19、AP22、AP27、AP28": [
+            "AP19",
+            "AP22",
+            "AP27",
+            "AP28"
+        ],
+        "4. - AP32、AP33、AP34": [
+            "AP32",
+            "AP33",
+            "AP34"
+        ],
+        "5. - AP35、AP37、AP38、AP40": [
+            "AP35",
+            "AP37",
+            "AP38",
+            "AP40"
+        ],
+        "6. - ICT02、TG1、TG2": [
+            "ICT02",
+            "TG1",
+            "TG2"
+        ]
+    }
     
     # 檢查 JSON 檔案是否存在
     if not os.path.exists(json_file):
@@ -85,12 +85,39 @@ def load_folder_groups():
         with open(json_file, 'r', encoding='utf-8') as f:
             folder_groups = json.load(f)
         print(f"已載入 {json_file}")
-        return folder_groups
+        return folder_groups      
     except json.JSONDecodeError:
         print(f"無法解析 {json_file}，使用預設值")
         with open(json_file, 'w', encoding='utf-8') as f:
             json.dump(default_groups, f, ensure_ascii=False, indent=4)
         return default_groups
+
+# 載入或創建 VPN 設定
+def load_vpn_config():
+    json_file = "vpn_config.json"
+    default_vpn_config = [
+        {"name": "VPN1", "server": "192.168.1.1", "account": "user1", "password": "pass1"},
+    ]
+    
+    # 檢查 JSON 檔案是否存在
+    if not os.path.exists(json_file):
+        # 若不存在，創建預設 JSON 檔案
+        with open(json_file, 'w', encoding='utf-8') as f:
+            json.dump(default_vpn_config, f, ensure_ascii=False, indent=4)
+        print(f"已創建預設 {json_file}")
+        return default_vpn_config
+    
+    # 載入 JSON 檔案
+    try:
+        with open(json_file, 'r', encoding='utf-8') as f:
+            vpn_config = json.load(f)
+        print(f"已載入 {json_file}")
+        return vpn_config
+    except json.JSONDecodeError:
+        print(f"無法解析 {json_file}，使用預設值")
+        with open(json_file, 'w', encoding='utf-8') as f:
+            json.dump(default_vpn_config, f, ensure_ascii=False, indent=4)
+        return default_vpn_config
 
 # Step 2: 開啟「網路和網際網路」設定
 def open_vpn_settings():
@@ -143,9 +170,7 @@ def reset_to_start():
 
 # Step 7: 新增多組 VPN 連線
 def add_vpns():
-    vpn_list = [
-        {"name": "", "server": "9", "account": "", "password": ""},
-    ]
+    vpn_list = load_vpn_config()  # 從 JSON 檔案載入 VPN 設定
     
     open_vpn_settings()
 
