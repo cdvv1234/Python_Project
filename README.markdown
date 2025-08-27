@@ -14,7 +14,6 @@
 - **AI 工具**：
   - **ChatGPT**：擅長生成初始程式碼草稿與自然語言解釋，適合快速原型設計與學習。
   - **Grok**：由 xAI 開發，擅長提供結構化且實用的程式碼建議，適合技術性問題解答。
-  - **Claude**：由 Anthropic 開發，擅長撰寫清晰的程式碼與邏輯分析，適合複雜任務的規劃。
   - 由於各 AI 工具的免費使用限制，專案中結合多種工具的優勢，靈活應用以提升開發效率。
 
 ## 改進與交流
@@ -38,7 +37,6 @@ This project is dedicated to Python programming practice. Most content is genera
 - **AI Tools**:
   - **ChatGPT**: Excels at generating initial code drafts and natural language explanations, ideal for rapid prototyping and learning.
   - **Grok**: Developed by xAI, specializes in structured and practical code suggestions, suitable for technical problem-solving.
-  - **Claude**: Developed by Anthropic, excels at writing clear code and logical analysis, ideal for planning complex tasks.
   - Due to free-tier limitations of each AI tool, this project combines their strengths for flexible and efficient development.
 
 ## Suggestions & Collaboration
