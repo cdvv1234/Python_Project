@@ -6,13 +6,23 @@ import program3
 import program4
 import program5
 import program6
+import program7
 from playwright.sync_api import sync_playwright
 from tkinter import font as tkFont
 import time
 
 # 所有站台列表
 sites = [
-    {"name": "TC", "url": ""}
+    {"name": "TC", "url": "https://beh.tcssc9.net/"},
+    {"name": "TF", "url": "https://be.jf988.net/"},
+    {"name": "TS", "url": "https://be-h.tssc99.net/"},
+    {"name": "SY", "url": "https://be-h.syss00.com/"},
+    {"name": "FL", "url": "https://be.flyl77.net/"},
+    {"name": "WX", "url": "https://be-s.wxyl77.com/"},
+    {"name": "XC", "url": "https://be-s.xcwin77.com/"},
+    {"name": "XH", "url": "https://be.xhxhyl33.com/"},
+    {"name": "CJ", "url": "https://be.cjcjyl11.com/"},
+    {"name": "CY", "url": "https://be.cywdsd2505.com/"}
 ]
 
 class MainApp:
@@ -32,6 +42,7 @@ class MainApp:
         self.btn4 = None
         self.btn5 = None
         self.btn6 = None
+        self.btn7 = None
         
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.create_main_interface()
@@ -43,23 +54,33 @@ class MainApp:
         function_frame = tk.LabelFrame(self.root, text="功能列", font=("Arial", 12))
         function_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
 
+        # 第一列：5個按鈕 (program1 to program5)
         self.btn1 = tk.Button(function_frame, text="事件紀錄抓取", command=lambda: program1.run_program_1(self.selected_sites, self.pages), width=20, height=2, state="disabled")
-        self.btn1.pack(pady=5)
+        self.btn1.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
 
         self.btn2 = tk.Button(function_frame, text="投注與盈亏抓取", command=lambda: program2.run_program_2(self.selected_sites, self.pages), width=20, height=2, state="disabled")
-        self.btn2.pack(pady=5)
+        self.btn2.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
 
         self.btn3 = tk.Button(function_frame, text="幸運抽獎抓取", command=lambda: program3.run_program_3(self.selected_sites, self.pages), width=20, height=2, state="disabled")
-        self.btn3.pack(pady=5)
+        self.btn3.grid(row=2, column=0, padx=5, pady=5, sticky="ew")
 
         self.btn4 = tk.Button(function_frame, text="審單DATA抓取", command=lambda: program4.run_program(self.root, self.selected_sites, self.pages), width=20, height=2, state="disabled")
-        self.btn4.pack(pady=5)
+        self.btn4.grid(row=3, column=0, padx=5, pady=5, sticky="ew")
 
         self.btn5 = tk.Button(function_frame, text="直屬及下級盈虧查詢", command=lambda: program5.run_program_5(self.root, self.selected_sites, self.pages), width=20, height=2, state="disabled")
-        self.btn5.pack(pady=5)
+        self.btn5.grid(row=4, column=0, padx=5, pady=5, sticky="ew")
 
+        # 第二列：2個按鈕 (program6 and program7)
         self.btn6 = tk.Button(function_frame, text="招商觀察", command=lambda: program6.run_program_6(self.root, self.selected_sites, self.pages), width=20, height=2, state="disabled")
-        self.btn6.pack(pady=5)
+        self.btn6.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        self.btn7 = tk.Button(function_frame, text="帳戶管理抓取", command=lambda: program7.run_program_7(self.root, self.selected_sites, self.pages), width=20, height=2, state="disabled")
+        self.btn7.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+
+        # 設置function_frame的網格權重
+        function_frame.grid_columnconfigure(0, weight=1)
+        function_frame.grid_columnconfigure(1, weight=1)
+        function_frame.grid_rowconfigure((0,1,2,3,4), weight=1)
 
         site_frame = tk.Frame(self.root)
         site_frame.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
@@ -107,13 +128,13 @@ class MainApp:
             window.grid_rowconfigure(i, weight=1)
 
         # 帳號和密碼輸入框，進一步縮小間距，並添加預設值
-        account_var = tk.StringVar(value="")  # 預設帳號
+        account_var = tk.StringVar(value="data002")  # 預設帳號
         account_label = tk.Label(window, text="帳號：", font=custom_font)
         account_label.grid(row=3, column=0, padx=2, pady=5, sticky="e")
         account_entry = tk.Entry(window, width=30, font=custom_font, textvariable=account_var)
         account_entry.grid(row=3, column=1, columnspan=3, padx=2, pady=5)
 
-        password_var = tk.StringVar(value="")  # 預設密碼
+        password_var = tk.StringVar(value="Data20230201")  # 預設密碼
         password_label = tk.Label(window, text="密碼：", font=custom_font)
         password_label.grid(row=4, column=0, padx=2, pady=5, sticky="e")
         password_entry = tk.Entry(window, width=30, font=custom_font, show="*", textvariable=password_var)
@@ -191,6 +212,7 @@ class MainApp:
         self.btn4.config(state="normal")
         self.btn5.config(state="normal")
         self.btn6.config(state="normal")
+        self.btn7.config(state="normal")
         self.close_site_button.config(state="normal")
         self.open_site_button.config(state="disabled")
 
@@ -213,6 +235,7 @@ class MainApp:
         self.btn4.config(state="disabled")
         self.btn5.config(state="disabled")
         self.btn6.config(state="disabled")
+        self.btn7.config(state="disabled")
         self.close_site_button.config(state="disabled")
         self.open_site_button.config(state="normal")
 
