@@ -8,22 +8,14 @@ import time
 
 # 所有站台列表
 sites = [
-    {"name": "TC", "url": "https://beh.tcssc9.net/"},
-    {"name": "TF", "url": "https://be.jf988.net/"},
-    {"name": "TS", "url": "https://be-h.tssc99.net/"},
-    {"name": "SY", "url": "https://be-h.syss00.com/"},
-    {"name": "FL", "url": "https://be.flyl77.net/"},
-    {"name": "WX", "url": "https://be-s.wxyl77.com/"},
-    {"name": "XC", "url": "https://be-s.xcwin77.com/"},
-    {"name": "XH", "url": "https://be.xhxhyl33.com/"},
-    {"name": "CJ", "url": "https://be.cjcjyl11.com/"},
-    {"name": "CY", "url": "https://be.cywdsd2505.com/"}
+    {"name": "TC",},
+
 ]
 
 # 多組預設帳號
 ACCOUNT_GROUPS = {
-    "data001": {"username": "data001", "password": "Data20251113"},
-    "data002": {"username": "data002", "password": "Data20251113"},
+    "data001": {"username": "", "password": ""},
+    "data002": {"username": "", "password": ""},
 }
 
 class MainApp:
@@ -234,4 +226,5 @@ class MainApp:
 if __name__ == "__main__":
     root = tk.Tk()
     app = MainApp(root)
+
     root.mainloop()
