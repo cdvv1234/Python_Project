@@ -1,253 +1,237 @@
 import tkinter as tk
-from tkinter import messagebox
-import program1
-import program2
-import program3
-import program4
-import program5
-import program6
-import program7
-from playwright.sync_api import sync_playwright
-from tkinter import font as tkFont
+from tkinter import messagebox, ttk
+import program1, program2, program3, program4, program5, program6, program7, program8, program9, program10
+from playwright.async_api import async_playwright
+import asyncio
+import threading
 import time
 
 # 所有站台列表
 sites = [
-    {"name": "TC", "url": ""},
+    {"name": "TC", "url": "https://beh.tcssc9.net/"},
+    {"name": "TF", "url": "https://be.jf988.net/"},
+    {"name": "TS", "url": "https://be-h.tssc99.net/"},
+    {"name": "SY", "url": "https://be-h.syss00.com/"},
+    {"name": "FL", "url": "https://be.flyl77.net/"},
+    {"name": "WX", "url": "https://be-s.wxyl77.com/"},
+    {"name": "XC", "url": "https://be-s.xcwin77.com/"},
+    {"name": "XH", "url": "https://be.xhxhyl33.com/"},
+    {"name": "CJ", "url": "https://be.cjcjyl11.com/"},
+    {"name": "CY", "url": "https://be.cywdsd2505.com/"}
 ]
+
+# 多組預設帳號
+ACCOUNT_GROUPS = {
+    "data001": {"username": "data001", "password": "Data20251113"},
+    "data002": {"username": "data002", "password": "Data20251113"},
+}
 
 class MainApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("程式選擇器")
-        self.root.geometry("600x400")
+        self.root.title("程式選擇器 (全並行防錯版)")
+        self.root.geometry("800x500")
+        
+        # 核心狀態控制
+        self.is_running = False 
+
+        # 初始化非同步事件循環
+        self.loop = asyncio.new_event_loop()
+        self.thread = threading.Thread(target=self._run_async_loop, daemon=True)
+        self.thread.start()
+
+        self.playwright = None
         self.browser = None
+        self.context = None
         self.pages = []
         self.selected_sites = []
-        self.playwright = None
-        self.open_site_button = None
-        self.close_site_button = None
-        self.btn1 = None
-        self.btn2 = None
-        self.btn3 = None
-        self.btn4 = None
-        self.btn5 = None
-        self.btn6 = None
-        self.btn7 = None
+        self.btn_list = []
         
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.create_main_interface()
 
+    def _run_async_loop(self):
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
+
+    def run_async(self, coro):
+        return asyncio.run_coroutine_threadsafe(coro, self.loop)
+
+    def set_buttons_state(self, state):
+        """統一設定功能按鈕與關閉站台按鈕的狀態"""
+        for btn in self.btn_list:
+            btn.config(state=state)
+        self.close_site_button.config(state=state)
+
+    def safe_run_program(self, program_func):
+        """防止重複執行的安全包裝器"""
+        if self.is_running:
+            messagebox.showwarning("警告", "已有功能正在執行中，請等候完成。")
+            return
+        
+        # 鎖定 UI 並標記為執行中
+        self.is_running = True
+        self.set_buttons_state("disabled")
+        
+        # 執行子程式，並傳入「完成後的回呼函式 (callback)」
+        # 之後每個 program 的入口 function 都要接收這個 callback
+        program_func(self.on_program_complete)
+
+    def on_program_complete(self):
+        """當子程式結束時，由子程式呼叫此函式解鎖 UI"""
+        self.is_running = False
+        # 確保在主線程更新 UI
+        self.root.after(0, lambda: self.set_buttons_state("normal"))
+
     def create_main_interface(self):
-        title_label = tk.Label(self.root, text="請選擇要執行的程式", font=("Arial", 16))
-        title_label.grid(row=0, column=0, columnspan=2, pady=10)
+        title_label = tk.Label(self.root, text="請選擇要執行的程式", font=("Arial", 18, "bold"))
+        title_label.pack(pady=20)
 
-        function_frame = tk.LabelFrame(self.root, text="功能列", font=("Arial", 12))
-        function_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
+        main_frame = tk.Frame(self.root)
+        main_frame.pack(fill="both", expand=True, padx=30, pady=10)
 
-        # 第一列：5個按鈕 (program1 to program5)
-        self.btn1 = tk.Button(function_frame, text="事件紀錄抓取", command=lambda: program1.run_program_1(self.selected_sites, self.pages), width=20, height=2, state="disabled")
-        self.btn1.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+        # 左側：功能列
+        function_frame = tk.LabelFrame(main_frame, text="功能列", font=("Arial", 14), padx=20, pady=20)
+        function_frame.pack(side=tk.LEFT, fill="y", padx=(0, 50))
 
-        self.btn2 = tk.Button(function_frame, text="投注與盈亏抓取", command=lambda: program2.run_program_2(self.selected_sites, self.pages), width=20, height=2, state="disabled")
-        self.btn2.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
-
-        self.btn3 = tk.Button(function_frame, text="幸運抽獎抓取", command=lambda: program3.run_program_3(self.selected_sites, self.pages), width=20, height=2, state="disabled")
-        self.btn3.grid(row=2, column=0, padx=5, pady=5, sticky="ew")
-
-        self.btn4 = tk.Button(function_frame, text="審單DATA抓取", command=lambda: program4.run_program(self.root, self.selected_sites, self.pages), width=20, height=2, state="disabled")
-        self.btn4.grid(row=3, column=0, padx=5, pady=5, sticky="ew")
-
-        self.btn5 = tk.Button(function_frame, text="直屬及下級盈虧查詢", command=lambda: program5.run_program_5(self.root, self.selected_sites, self.pages), width=20, height=2, state="disabled")
-        self.btn5.grid(row=4, column=0, padx=5, pady=5, sticky="ew")
-
-        # 第二列：2個按鈕 (program6 and program7)
-        self.btn6 = tk.Button(function_frame, text="招商觀察", command=lambda: program6.run_program_6(self.root, self.selected_sites, self.pages), width=20, height=2, state="disabled")
-        self.btn6.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-
-        self.btn7 = tk.Button(function_frame, text="帳戶管理抓取", command=lambda: program7.run_program_7(self.root, self.selected_sites, self.pages), width=20, height=2, state="disabled")
-        self.btn7.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
-
-        # 設置function_frame的網格權重
-        function_frame.grid_columnconfigure(0, weight=1)
-        function_frame.grid_columnconfigure(1, weight=1)
-        function_frame.grid_rowconfigure((0,1,2,3,4), weight=1)
-
-        site_frame = tk.Frame(self.root)
-        site_frame.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
-
-        open_frame = tk.LabelFrame(site_frame, text="開啟站台", font=("Arial", 12))
-        open_frame.pack(pady=5)
-        self.open_site_button = tk.Button(open_frame, text="開啟站台", command=self.select_sites, width=15, height=2)
-        self.open_site_button.pack()
-
-        close_frame = tk.LabelFrame(site_frame, text="關閉站台", font=("Arial", 12))
-        close_frame.pack(pady=5)
-        self.close_site_button = tk.Button(close_frame, text="關閉站台", command=self.close_browsers, width=15, height=2, state="disabled")
-        self.close_site_button.pack()
-
-        self.root.grid_rowconfigure(1, weight=1)
-        self.root.grid_columnconfigure(0, weight=3)
-        self.root.grid_columnconfigure(1, weight=1)
-
-        print("主程式啟動，主視窗已創建")
-
-    def select_sites(self):
-        window = tk.Toplevel(self.root)
-        window.title("選擇站台")
-        window.geometry("600x400")
-        custom_font = tkFont.Font(family="Arial", size=12)
-
-        # 勾選站台部分，調整為新的佈局
-        checkbox_vars = []
-        site_layout = [
-            [("TC", 0, 0), ("SY", 0, 1), ("XC", 0, 2), ("CY", 0, 3)],
-            [("TF", 1, 0), ("FL", 1, 1), ("XH", 1, 2)],
-            [("TS", 2, 0), ("WX", 2, 1), ("CJ", 2, 2)]
+        # 功能按鈕定義
+        # 傳入 self.on_program_complete 作為最後一個參數
+        buttons = [
+            ("事件紀錄抓取", lambda: self.safe_run_program(lambda cb: program1.run_program_1(self.root, self.selected_sites, self.pages, cb))),
+            ("投注與盈亏抓取", lambda: self.safe_run_program(lambda cb: program2.run_program_2(self.root, self.selected_sites, self.pages, cb))),
+            ("幸運抽獎抓取", lambda: self.safe_run_program(lambda cb: program3.run_program_3(self.root, self.selected_sites, self.pages, cb))),
+            ("審單DATA抓取", lambda: self.safe_run_program(lambda cb: program4.run_program_4(self.root, self.selected_sites, self.pages, cb))),
+            ("直屬及下級盈虧查詢", lambda: self.safe_run_program(lambda cb: program5.run_program_5(self.root, self.selected_sites, self.pages, cb))),
+            ("招商觀察", lambda: self.safe_run_program(lambda cb: program6.run_program_6(self.root, self.selected_sites, self.pages, cb))),
+            ("帳戶管理抓取", lambda: self.safe_run_program(lambda cb: program7.run_program_7(self.root, self.selected_sites, self.pages, cb))),
+            ("投注紀錄全抓取", lambda: self.safe_run_program(lambda cb: program8.run_program_8(self.root, self.selected_sites, self.pages, cb))),
+            ("彩種玩法統計", lambda: self.safe_run_program(lambda cb: program9.run_program_9(self.root, self.selected_sites, self.pages, cb))),
+            ("彩種統計", lambda: self.safe_run_program(lambda cb: program10.run_program_10(self.root, self.selected_sites, self.pages, cb))),
         ]
-        for row_data in site_layout:
-            for site_name, row, col in row_data:
-                var = tk.BooleanVar(value=False)
-                chk = tk.Checkbutton(window, text=site_name, variable=var, font=custom_font)
-                chk.grid(row=row, column=col, padx=20, pady=10, sticky="nsew")
-                checkbox_vars.append((site_name, var))
 
-        # 設置列權重以均勻分配空間
-        for i in range(4):
-            window.grid_columnconfigure(i, weight=1)
-        for i in range(3):
-            window.grid_rowconfigure(i, weight=1)
+        for i, (text, cmd) in enumerate(buttons):
+            btn = tk.Button(function_frame, text=text, command=cmd, width=22, height=2, font=("Arial", 12), state="disabled")
+            btn.grid(row=i // 2, column=i % 2, padx=10, pady=10)
+            self.btn_list.append(btn)
 
-        # 帳號和密碼輸入框，進一步縮小間距，並添加預設值
-        account_var = tk.StringVar(value="data002")  # 預設帳號
-        account_label = tk.Label(window, text="帳號：", font=custom_font)
-        account_label.grid(row=3, column=0, padx=2, pady=5, sticky="e")
-        account_entry = tk.Entry(window, width=30, font=custom_font, textvariable=account_var)
-        account_entry.grid(row=3, column=1, columnspan=3, padx=2, pady=5)
+        # 右側：開啟/關閉站台
+        control_frame = tk.Frame(main_frame)
+        control_frame.pack(side=tk.RIGHT, fill="y")
+        tk.Frame(control_frame, height=60).pack()
 
-        password_var = tk.StringVar(value="Data20230201")  # 預設密碼
-        password_label = tk.Label(window, text="密碼：", font=custom_font)
-        password_label.grid(row=4, column=0, padx=2, pady=5, sticky="e")
-        password_entry = tk.Entry(window, width=30, font=custom_font, show="*", textvariable=password_var)
-        password_entry.grid(row=4, column=1, columnspan=3, padx=2, pady=5)
+        self.open_site_button = tk.Button(control_frame, text="開啟站台", command=self.select_and_open_sites, bg="#4CAF50", fg="white", font=("Arial", 12), width=22, height=2)
+        self.open_site_button.pack(pady=10)
 
-        def confirm_selection():
-            # 獲取帳號和密碼的值
-            username = account_var.get()
-            password = password_var.get()
-            
-            # 獲取選擇的站台
-            self.selected_sites = [site for site in sites if next((var.get() for name, var in checkbox_vars if name == site["name"]), False)]
-            
-            # 銷毀視窗
+        self.close_site_button = tk.Button(control_frame, text="關閉站台", command=lambda: self.run_async(self.close_browsers()), bg="#f44336", fg="white", font=("Arial", 12), width=22, height=2, state="disabled")
+        self.close_site_button.pack(pady=10)
+
+    def select_and_open_sites(self):
+        window = tk.Toplevel(self.root)
+        window.title("選擇要開啟的站台與登入帳號")
+        window.geometry("600x680")
+        window.grab_set()
+
+        tk.Label(window, text="請選擇要開啟的站台：", font=("Arial", 14)).pack(pady=20)
+        site_grid = tk.Frame(window)
+        site_grid.pack(pady=20)
+
+        site_order = [["TC", "FL", "XH"], ["TF", "WX", "CJ"], ["TS", "XC", "CY"], ["SY", "", ""]]
+        self.site_vars = {}
+        for r, row_sites in enumerate(site_order):
+            for c, name in enumerate(row_sites):
+                if name:
+                    var = tk.BooleanVar()
+                    chk = tk.Checkbutton(site_grid, text=name, variable=var, font=("Arial", 14))
+                    chk.grid(row=r, column=c, padx=50, pady=12, sticky="w")
+                    self.site_vars[name] = var
+
+        credential_frame = tk.LabelFrame(window, text="登入帳號設定", font=("Arial", 12), padx=20, pady=15)
+        credential_frame.pack(pady=30, fill="x", padx=40)
+
+        tk.Label(credential_frame, text="帳號群組：", font=("Arial", 12)).grid(row=0, column=0, pady=10)
+        account_group_var = tk.StringVar(value=list(ACCOUNT_GROUPS.keys())[0])
+        account_combo = ttk.Combobox(credential_frame, textvariable=account_group_var, values=list(ACCOUNT_GROUPS.keys()), state="readonly", width=25, font=("Arial", 12))
+        account_combo.grid(row=0, column=1, padx=20)
+
+        tk.Label(credential_frame, text="帳號：", font=("Arial", 12)).grid(row=1, column=0)
+        username_entry = tk.Entry(credential_frame, width=30, font=("Arial", 12))
+        username_entry.grid(row=1, column=1, pady=10)
+        
+        tk.Label(credential_frame, text="密碼：", font=("Arial", 12)).grid(row=2, column=0)
+        password_entry = tk.Entry(credential_frame, width=30, font=("Arial", 12), show="*")
+        password_entry.grid(row=2, column=1, pady=10)
+
+        def fill_creds():
+            selected = account_group_var.get()
+            username_entry.delete(0, tk.END)
+            username_entry.insert(0, ACCOUNT_GROUPS[selected]["username"])
+            password_entry.delete(0, tk.END)
+            password_entry.insert(0, ACCOUNT_GROUPS[selected]["password"])
+        
+        fill_creds()
+        account_combo.bind("<<ComboboxSelected>>", lambda e: fill_creds())
+
+        def confirm():
+            selected = [s for s in sites if self.site_vars.get(s["name"]) and self.site_vars[s["name"]].get()]
+            if not selected:
+                messagebox.showwarning("警告", "請至少選擇一個站台！")
+                return
+            self.selected_sites = selected
+            self.run_async(self.open_browsers_with_login(username_entry.get(), password_entry.get()))
             window.destroy()
-            
-            # 檢查是否選擇了站台
-            if not self.selected_sites:
-                messagebox.showinfo("提示", "未選擇任何站台。")
-            else:
-                self.open_browsers_with_login(username, password)
 
-        def cancel_selection():
-            window.destroy()
+        btn_frame = tk.Frame(window)
+        btn_frame.pack(pady=30)
+        tk.Button(btn_frame, text="確定", command=confirm, bg="#4CAF50", fg="white", font=("Arial", 14), width=12).pack(side=tk.LEFT, padx=20)
+        tk.Button(btn_frame, text="取消", command=window.destroy, font=("Arial", 14), width=12).pack(side=tk.LEFT, padx=20)
 
-        # 確定和取消按鈕置中
-        button_frame = tk.Frame(window)
-        button_frame.grid(row=5, column=0, columnspan=4, pady=20)
-
-        submit_button = tk.Button(button_frame, text="確定", command=confirm_selection, font=custom_font, width=10)
-        submit_button.pack(side="left", padx=10)
-
-        cancel_button = tk.Button(button_frame, text="取消", command=cancel_selection, font=custom_font, width=10)
-        cancel_button.pack(side="left", padx=10)
-
-        # 調整權重以向左移動
-        window.grid_columnconfigure(0, weight=2)
-        window.grid_columnconfigure(1, weight=1)
-        window.grid_columnconfigure(2, weight=1)
-        window.grid_columnconfigure(3, weight=1)
-
-        window.wait_window()
-
-    def open_browsers_with_login(self, username, password):
-        self.playwright = sync_playwright().start()
-        self.browser = self.playwright.chromium.launch(headless=False)
+    async def open_browsers_with_login(self, username, password):
+        self.playwright = await async_playwright().start()
+        self.browser = await self.playwright.chromium.launch(headless=False)
+        self.context = await self.browser.new_context()
         self.pages = []
+        
         for site in self.selected_sites:
-            page = self.browser.new_page()
-            page.goto(site["url"])
-            # 根據站台類型選擇不同的選擇器進行自動登入
+            page = await self.context.new_page()
             try:
-                # 帳號和密碼的選擇器對於所有站台相同
-                page.wait_for_selector("#LoginID", state="visible", timeout=5000)
-                page.fill("#LoginID", username)
-                page.wait_for_selector("#Password", state="visible", timeout=5000)
-                page.fill("#Password", password)
-
-                # 根據站台類型選擇不同的登入按鈕
-                if site["name"] in ["TC", "TF"]:
-                    login_button_selector = "body > div > div > div > div > div.panel-body > form > fieldset > input"
-                else:
-                    login_button_selector = "body > div > div > div > div > div > div > div > div > form > input.btn.btn-primary.btn-user.btn-block"
-
-                page.wait_for_selector(login_button_selector, state="visible", timeout=5000)
-                page.click(login_button_selector)
-                time.sleep(2)  # 等待登入完成
-            except Exception as e:
-                print(f"站台 {site['name']} 登入失敗: {e}")
+                await page.goto(site["url"])
+                await page.wait_for_selector("#LoginID", timeout=10000)
+                await page.fill("#LoginID", username)
+                await page.fill("#Password", password)
+                
+                # 自動判斷登入按鈕
+                login_btn = "input[type='submit'], input.btn-success" if site["name"] in ["TC", "TF"] else "input.btn.btn-primary.btn-user.btn-block"
+                if await page.locator(login_btn).count() > 0:
+                    await page.click(login_btn)
+            except:
+                pass
             self.pages.append(page)
+        
+        self.root.after(0, self._enable_ui_after_open)
 
-        self.btn1.config(state="normal")
-        self.btn2.config(state="normal")
-        self.btn3.config(state="normal")
-        self.btn4.config(state="normal")
-        self.btn5.config(state="normal")
-        self.btn6.config(state="normal")
-        self.btn7.config(state="normal")
-        self.close_site_button.config(state="normal")
+    def _enable_ui_after_open(self):
+        self.set_buttons_state("normal")
         self.open_site_button.config(state="disabled")
+        self.is_running = False # 初始狀態解鎖
+        messagebox.showinfo("就緒", "分頁已開啟，請點擊功能按鈕。")
 
-        tk.Tk().withdraw()
-        messagebox.showinfo("準備分頁", "請在所有分頁完成登入，然後點擊確定繼續。")
-
-    def close_browsers(self):
-        if self.browser:
-            self.browser.close()
-            self.browser = None
-        if self.playwright:
-            self.playwright.stop()
-            self.playwright = None
+    async def close_browsers(self):
+        if self.browser: await self.browser.close()
+        if self.playwright: await self.playwright.stop()
         self.pages = []
-        self.selected_sites = []
+        self.is_running = False
+        self.root.after(0, self._disable_ui_after_close)
 
-        self.btn1.config(state="disabled")
-        self.btn2.config(state="disabled")
-        self.btn3.config(state="disabled")
-        self.btn4.config(state="disabled")
-        self.btn5.config(state="disabled")
-        self.btn6.config(state="disabled")
-        self.btn7.config(state="disabled")
-        self.close_site_button.config(state="disabled")
+    def _disable_ui_after_close(self):
+        self.set_buttons_state("disabled")
         self.open_site_button.config(state="normal")
 
-        print("瀏覽器已關閉")
-
     def on_closing(self):
-        print("關閉主視窗，清理資源...")
-        if self.browser:
-            self.browser.close()
-        if self.playwright:
-            self.playwright.stop()
+        self.run_async(self.close_browsers())
         self.root.quit()
         self.root.destroy()
-        print("主程式結束，主視窗已銷毀")
 
 if __name__ == "__main__":
-    try:    
-        root = tk.Tk()
-        app = MainApp(root)
-        root.mainloop()
-    except Exception as e:
-        print(f"程式發生錯誤: {e}")
-
-        raise
+    root = tk.Tk()
+    app = MainApp(root)
+    root.mainloop()
