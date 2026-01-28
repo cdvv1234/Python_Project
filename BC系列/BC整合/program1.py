@@ -1,34 +1,27 @@
 import tkinter as tk
 from tkinter import font as tkFont, filedialog, messagebox
 from tkcalendar import DateEntry
-from playwright.sync_api import sync_playwright
-import pandas as pd
-from datetime import datetime, timedelta
-import time
 from tkinter import ttk
+import pandas as pd
+import asyncio
 import re
+from datetime import datetime, timedelta
 
-# 通用的文字清理函數
+# --- 通用的文字清理函數 ---
 def clean_text(text):
-    """清理文字欄位，移除多餘空行並將多個空格替換為單個空格"""
     if isinstance(text, str):
-        # 移除多餘的空行和換行符
         text = re.sub(r'\n+', ' ', text)
-        # 將多個空格替換為單個空格
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
     return text
 
-# 站點配置（與 main.py 一致）
-sites = [
-    {"name": "TC", "url": ""},
-]
-
+# --- 日期選擇視窗 ---
 def select_dates(parent):
     selected_data = {"start_date": "", "end_date": ""}
     window = tk.Toplevel(parent)
-    window.title("選擇日期與時間")
+    window.title("選擇日期與時間 - 事件紀錄")
     window.geometry("400x350")
+    window.grab_set()
     font_style = tkFont.Font(size=10)
 
     yesterday = datetime.now() - timedelta(days=1)
@@ -55,17 +48,17 @@ def select_dates(parent):
     start_manual_entry = tk.Entry(start_frame, width=16, font=font_style)
     start_manual_entry.pack(side=tk.LEFT, padx=5)
     
-    def update_start_manual():
+    def update_start_manual(*args):
         date = start_date_entry.get()
         hour = start_hour_combo.get()
         minute = start_minute_combo.get()
         start_manual_entry.delete(0, tk.END)
         start_manual_entry.insert(0, f"{date} {hour}:{minute}")
     
-    start_date_entry.bind("<<DateEntrySelected>>", lambda e: update_start_manual())
-    start_hour_combo.bind("<<ComboboxSelected>>", lambda e: update_start_manual())
-    start_minute_combo.bind("<<ComboboxSelected>>", lambda e: update_start_manual())
- 
+    start_date_entry.bind("<<DateEntrySelected>>", update_start_manual)
+    start_hour_combo.bind("<<ComboboxSelected>>", update_start_manual)
+    start_minute_combo.bind("<<ComboboxSelected>>", update_start_manual)
+
     tk.Label(window, text="結束日期與時間 (YYYY/MM/DD HH:MM)：", font=font_style).pack(pady=5)
     end_frame = tk.Frame(window)
     end_frame.pack(pady=5)
@@ -87,176 +80,172 @@ def select_dates(parent):
     end_manual_entry = tk.Entry(end_frame, width=16, font=font_style)
     end_manual_entry.pack(side=tk.LEFT, padx=5)
     
-    def update_end_manual():
+    def update_end_manual(*args):
         date = end_date_entry.get()
         hour = end_hour_combo.get()
         minute = end_minute_combo.get()
         end_manual_entry.delete(0, tk.END)
         end_manual_entry.insert(0, f"{date} {hour}:{minute}")
     
-    end_date_entry.bind("<<DateEntrySelected>>", lambda e: update_end_manual())
-    end_hour_combo.bind("<<ComboboxSelected>>", lambda e: update_end_manual())
-    end_minute_combo.bind("<<ComboboxSelected>>", lambda e: update_end_manual())
+    end_date_entry.bind("<<DateEntrySelected>>", update_end_manual)
+    end_hour_combo.bind("<<ComboboxSelected>>", update_end_manual)
+    end_minute_combo.bind("<<ComboboxSelected>>", update_end_manual)
 
     def confirm_selection():
-        selected_data["start_date"] = start_manual_entry.get()
-        selected_data["end_date"] = end_manual_entry.get()
-        
         try:
-            datetime.strptime(selected_data["start_date"], '%Y/%m/%d %H:%M')
-            datetime.strptime(selected_data["end_date"], '%Y/%m/%d %H:%M')
+            datetime.strptime(start_manual_entry.get(), '%Y/%m/%d %H:%M')
+            datetime.strptime(end_manual_entry.get(), '%Y/%m/%d %H:%M')
+            selected_data["start_date"] = start_manual_entry.get()
+            selected_data["end_date"] = end_manual_entry.get()
             window.destroy()
         except ValueError:
-            messagebox.showerror("錯誤", "請輸入有效的日期格式 (YYYY/MM/DD HH:MM)")
+            messagebox.showerror("錯誤", "日期格式不正確")
 
-    submit_button = tk.Button(window, text="確定", command=confirm_selection, font=font_style)
-    submit_button.pack(pady=10)
-
+    tk.Button(window, text="確定", command=confirm_selection, font=font_style).pack(pady=10)
     update_start_manual()
     update_end_manual()
-
     window.wait_window()
     return selected_data
 
-def scrape_table(site, page):
+# --- 異步抓取表格 ---
+async def scrape_table_async(site, page):
     all_data = []
     header_added = False
+    table_selector = "#eventLogTables"
 
     while True:
         try:
-            table_selector = "#eventLogTables"
-            page.wait_for_selector(table_selector, state="visible", timeout=2000)
-            rows = page.locator(f"{table_selector} tbody tr").all()
-            page_data = []
+            await page.wait_for_selector(table_selector, state="visible", timeout=5000)
+            rows_data = await page.evaluate("""(sel) => {
+                const rows = Array.from(document.querySelectorAll(sel + ' tbody tr'));
+                return rows.map(tr => Array.from(tr.querySelectorAll('td')).map(td => td.innerText.trim()));
+            }""", table_selector)
 
-            for row in rows:
-                columns = row.locator("td").all_text_contents()
-                # 清理每一列的文字
-                cleaned_columns = [clean_text(col) for col in columns]
-                page_data.append(cleaned_columns)
+            if not rows_data or "表中数据为空" in (rows_data[0][0] if rows_data else ""):
+                break
 
             if not header_added:
                 if site["name"].startswith("TC") or site["name"].startswith("TF"):
                     columns = ["时间", "事件类型", "资讯描述", "状态", "功能", "操作者", "详情"]
-                    all_data.append(columns)
-                    header_added = True
                 else:
-                    columns = ["时间", "事件类型", "资讯类型", "资讯描述", "状态", "功能", "操作者", "详情"]
-                    all_data.append(columns)
-                    header_added = True
+                    columns = ["时间", "事件类型", "资讯類型", "资讯描述", "状态", "功能", "操作者", "详情"]
+                all_data.append(columns)
+                header_added = True
 
-            all_data.extend(page_data)
+            for row in rows_data:
+                all_data.append([clean_text(col) for col in row])
 
             next_button = page.locator("#eventLogTables_next > a")
             parent_li = page.locator("#eventLogTables_next")
-            if (parent_li.count() and "disabled" in parent_li.get_attribute("class", timeout=5000)) or \
-               next_button.get_attribute("disabled", timeout=5000) or not next_button.is_visible():
+            is_visible = await next_button.is_visible()
+            class_attr = await parent_li.get_attribute("class") or ""
+            
+            if not is_visible or "disabled" in class_attr:
                 break
 
-            next_button.click()
-            time.sleep(2)
+            await next_button.click()
+            await asyncio.sleep(2)
         except Exception as e:
-            print(f"抓取資料時發生錯誤：{e}")
+            print(f"[{site['name']}] 翻頁時出錯: {e}")
             break
-
     return all_data
 
-def save_results(all_data_dict):
-    if not all_data_dict:
-        messagebox.showinfo("提示", "未抓取到任何資料。")
-        return
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    save_path = filedialog.asksaveasfilename(
-        defaultextension=".xlsx",
-        filetypes=[("Excel Files", "*.xlsx")],
-        initialfile=f"事件紀錄_{timestamp}.xlsx"
-    )
-
-    if save_path:
-        with pd.ExcelWriter(save_path, engine="openpyxl") as writer:
-            for site_name, data in all_data_dict.items():
-                if data:
-                    df = pd.DataFrame(data[1:], columns=data[0])
-                    df = df.applymap(clean_text)  # 再次確保資料乾淨
-                    df.to_excel(writer, sheet_name=site_name, index=False)
-        messagebox.showinfo("完成", f"資料已保存至 {save_path}")
-
-def process_site(site, page, start_date, end_date):
+# --- 單一站台處理程序 ---
+async def process_site_async(site, page, start_date, end_date):
     is_tc_tf = site["name"] in ["TC", "TF"]
     event_log_url = f"{site['url'].rstrip('/')}/EventLog"
-
-    max_retries = 2
-    for attempt in range(max_retries):
+    for attempt in range(2):
         try:
-            page.goto(event_log_url, wait_until="domcontentloaded", timeout=30000)
-            final_url = page.url
-            if final_url.rstrip('/') == site["url"].rstrip('/'):
-                print(f"站台 {site['name']} 的 EventLog 重定向到首頁: {final_url}")
-                page.screenshot(path=f"error_{site['name']}_eventlog_navigation.png")
-                return []
+            await page.goto(event_log_url, wait_until="domcontentloaded", timeout=30000)
+            if page.url.rstrip('/') == site["url"].rstrip('/'):
+                await asyncio.sleep(1)
+                continue
             break
         except Exception as e:
-            print(f"站台 {site['name']} 導航到 {event_log_url} 失敗 (嘗試 {attempt + 1}/{max_retries}): {e}")
-            if attempt == max_retries - 1:
-                page.screenshot(path=f"error_{site['name']}_eventlog_navigation.png")
-                return []
-            time.sleep(2)
+            if attempt == 1: return []
+            await asyncio.sleep(2)
 
     try:
-        page.wait_for_selector("#StartTime", state="visible", timeout=10000)
+        await page.wait_for_selector("#StartTime", state="visible", timeout=10000)
         if is_tc_tf:
-            page.type("#StartTime", start_date)
-            page.type("#EndTime", end_date)
-            print(f"站台 {site['name']} StartTime={start_date}, EndTime={end_date}")
+            await page.fill("#StartTime", "")
+            await page.type("#StartTime", start_date)
+            await page.fill("#EndTime", "")
+            await page.type("#EndTime", end_date)
         else:
-            page.fill("#StartTime", start_date)
-            page.fill("#EndTime", end_date)
-            print(f"站台 {site['name']} StartTime={start_date}, EndTime={end_date}")
-    except Exception as e:
-        print(f"站台 {site['name']} 填入日期失敗: {e}")
-        page.screenshot(path=f"error_{site['name']}_eventlog_input.png")
+            await page.fill("#StartTime", start_date)
+            await page.fill("#EndTime", end_date)
+    except:
         return []
 
-    search_selector = (
-        "#KoEventLog > div.row.clearfix > div > div > div > div.panel-collapse.collapse.in > div > div > form > div.form-actions > button"
-        if is_tc_tf else
-        "#KoEventLog > div.card.shadow-sm.mb-4 > div.card-body > form > div.form-group.row > div > button"
-    )
-
+    search_selector = "button:has-text('查询')" if is_tc_tf else "#KoEventLog button:has-text('查询'), #KoEventLog button:has-text('Search')"
     try:
-        page.wait_for_selector(search_selector, state="visible", timeout=20000)
-        page.click(search_selector)
-        time.sleep(2)
-    except Exception as e:
-        print(f"站台 {site['name']} 點擊查詢按鈕失敗: {e}")
-        page.screenshot(path=f"error_{site['name']}_eventlog_search.png")
+        btn = page.locator(search_selector).first
+        await btn.click()
+        await asyncio.sleep(2)
+    except:
         return []
 
-    return scrape_table(site, page)
+    return await scrape_table_async(site, page)
 
-def run_program_1(selected_sites, pages):
+# --- Program 1 入口函式 ---
+def run_program_1(root, selected_sites, pages, cb):
     if not selected_sites:
         messagebox.showinfo("提示", "未選擇任何站台。")
+        if cb: root.after(0, cb)
         return
 
-    root = tk.Tk()
-    root.withdraw()
     selected_data = select_dates(root)
-    root.destroy()
-
     if not selected_data["start_date"] or not selected_data["end_date"]:
-        print("未輸入日期，程式結束。")
+        if cb: root.after(0, cb)
         return
 
     start_date = selected_data["start_date"]
     end_date = selected_data["end_date"]
+    all_data_dict = {}
 
-    all_data = {}
-    for site, page in zip(selected_sites, pages):
-        site_data = process_site(site, page, start_date, end_date)
-        if site_data:
-            all_data[site["name"]] = site_data
+    # 定義輸出的工作表順序
+    SHEET_ORDER = ["TC", "TF", "TS", "SY", "FL", "WX", "XC", "XH", "CJ", "CY"]
 
-    save_results(all_data)
-    print("run_program_1 執行完畢")
+    async def _async_process():
+        try:
+            tasks = []
+            for site, page in zip(selected_sites, pages):
+                async def worker(s, p):
+                    res = await process_site_async(s, p, start_date, end_date)
+                    if res: all_data_dict[s["name"]] = res
+                tasks.append(worker(site, page))
+            
+            await asyncio.gather(*tasks)
+
+            if all_data_dict:
+                save_path = filedialog.asksaveasfilename(
+                    defaultextension=".xlsx",
+                    filetypes=[("Excel Files", "*.xlsx")],
+                    initialfile=f"事件紀錄_{datetime.now().strftime('%m%d_%H%M')}.xlsx"
+                )
+                if save_path:
+                    with pd.ExcelWriter(save_path, engine="openpyxl") as writer:
+                        # --- 重要調整：依照預設順序寫入工作表 ---
+                        for site_name in SHEET_ORDER:
+                            if site_name in all_data_dict:
+                                data = all_data_dict[site_name]
+                                df = pd.DataFrame(data[1:], columns=data[0])
+                                df.to_excel(writer, sheet_name=site_name, index=False)
+                        
+                        # 如果有不在 SHEET_ORDER 裡的站台（預防萬一），最後補上
+                        for site_name, data in all_data_dict.items():
+                            if site_name not in SHEET_ORDER:
+                                df = pd.DataFrame(data[1:], columns=data[0])
+                                df.to_excel(writer, sheet_name=site_name, index=False)
+                                
+                    messagebox.showinfo("完成", f"存檔成功：{save_path}")
+            else:
+                messagebox.showinfo("提示", "查無任何數據")
+        except Exception as e:
+            messagebox.showerror("錯誤", f"抓取中斷: {e}")
+        finally:
+            if cb: root.after(0, cb)
+
+    from __main__ import app
+    app.run_async(_async_process())

@@ -22,7 +22,7 @@ def select_dates(parent):
     window = tk.Toplevel(parent)
     window.title("選擇日期 - 審單DATA")
     window.geometry("400x300")
-    window.grab_set()  # 鎖定視窗，強制使用者操作
+    window.grab_set()
     font_style = tkFont.Font(size=10)
 
     today = datetime.now()
@@ -109,7 +109,7 @@ def select_dates(parent):
     window.wait_window()
     return selected_data
 
-# --- 路徑設定 (與原 logic 一致) ---
+# --- 路徑設定 ---
 tc_tf_page_paths = [
     {"path": "WithdrawRiskControl", "channel": "草"},
     {"path": "WithdrawRiskControl/VcpIndex", "channel": "U"},
@@ -129,13 +129,11 @@ async def scrape_site_page_async(site, page, page_path, channel, start_date, end
         await page.goto(full_url, wait_until="domcontentloaded", timeout=30000)
         await asyncio.sleep(2)
         
-        # 處理彈窗
         try:
             close_btn = page.locator("#Warning-Dialog-CloseBtn")
             if await close_btn.is_visible(timeout=2000): await close_btn.click()
         except: pass
 
-        # 填寫日期並查詢 (依據 site 類型切換選擇器)
         if is_tc_tf:
             await page.fill("#StartCreateTime", "")
             await page.fill("#EndCreateTime", "")
@@ -152,7 +150,6 @@ async def scrape_site_page_async(site, page, page_path, channel, start_date, end
 
         await asyncio.sleep(3)
 
-        # 翻頁抓取表格內容
         while True:
             try:
                 await page.wait_for_selector("#RequestTable", timeout=5000)
@@ -184,7 +181,7 @@ async def scrape_site_page_async(site, page, page_path, channel, start_date, end
         print(f"Error scraping {site['name']}: {e}")
     return results
 
-# --- 數據處理 (與原 logic 一致) ---
+# --- 數據處理 ---
 def process_data_logic(site_name, raw_results):
     processed = []
     target_cols = ["状态", "操作者", "申请日期", "确认日期"]
@@ -206,7 +203,6 @@ def process_data_logic(site_name, raw_results):
                     idx_map[col] = headers.index(v)
                     break
         
-        # TC/TF U 渠道特殊補位邏輯
         if item["page_path"] == "WithdrawRiskControl/VcpIndex" and site_name in ["TC", "TF"]:
             if "状态" in idx_map:
                 s_idx = idx_map["状态"]
@@ -236,12 +232,9 @@ async def site_worker(site, page, start_date, end_date, final_dict):
 
 # --- Program 4 入口函式 ---
 def run_program_4(root, selected_sites, pages, cb):
-    # 1. 彈出日期選擇 (同步 UI)
     selected_data = select_dates(root)
     
-    # 2. 如果使用者關閉視窗或沒選日期，必須呼叫 cb() 恢復主 UI 並退出
     if not selected_data["start_date"]:
-        print("使用者取消日期選擇")
         if cb: root.after(0, cb)
         return
 
@@ -249,13 +242,14 @@ def run_program_4(root, selected_sites, pages, cb):
     end_date = selected_data["end_date"]
     all_site_data = {}
 
+    # 定義統一的工作表順序
+    SHEET_ORDER = ["TC", "TF", "TS", "SY", "FL", "WX", "XC", "XH", "CJ", "CY"]
+
     async def _async_wrapper():
         try:
-            # 3. 並行執行所有站台
             tasks = [site_worker(s, p, start_date, end_date, all_site_data) for s, p in zip(selected_sites, pages)]
             await asyncio.gather(*tasks)
 
-            # 4. 存檔 (同步 UI 操作)
             if any(all_site_data.values()):
                 save_path = filedialog.asksaveasfilename(
                     defaultextension=".xlsx",
@@ -263,10 +257,18 @@ def run_program_4(root, selected_sites, pages, cb):
                 )
                 if save_path:
                     with pd.ExcelWriter(save_path, engine='openpyxl') as writer:
+                        # --- 依照指定的 SHEET_ORDER 寫入工作表 ---
+                        for site_name in SHEET_ORDER:
+                            if site_name in all_site_data and all_site_data[site_name]:
+                                df = pd.DataFrame(all_site_data[site_name])
+                                df.to_excel(writer, index=False, sheet_name=site_name)
+                        
+                        # 處理不在預設順序清單中的其他站台
                         for site_name, rows in all_site_data.items():
-                            if rows:
+                            if site_name not in SHEET_ORDER and rows:
                                 df = pd.DataFrame(rows)
                                 df.to_excel(writer, index=False, sheet_name=site_name)
+
                     messagebox.showinfo("完成", f"存檔成功：{save_path}")
             else:
                 messagebox.showinfo("提示", "所選區間查無數據")
@@ -274,9 +276,7 @@ def run_program_4(root, selected_sites, pages, cb):
         except Exception as e:
             messagebox.showerror("程式錯誤", str(e))
         finally:
-            # 5. 無論成功或失敗，最後一定要解鎖主介面
             if cb: root.after(0, cb)
 
-    # 透過 MainApp 的非同步循環執行
     from __main__ import app
     app.run_async(_async_wrapper())
