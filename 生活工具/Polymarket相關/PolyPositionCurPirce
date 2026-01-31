@@ -1,0 +1,397 @@
+import tkinter as tk
+from tkinter import messagebox, scrolledtext
+import requests
+import threading
+import time
+import json
+from datetime import datetime
+import pystray
+from PIL import Image, ImageDraw
+import os
+
+# ================= 🔑 金鑰設定區 =================
+
+# --- 1. LINE 設定 ---
+LINE_ACCESS_TOKEN = 
+LINE_USER_ID = 
+LINE_LIMIT_THRESHOLD = 
+
+# --- 2. Telegram 設定 ---
+TELEGRAM_BOT_TOKEN = 
+TELEGRAM_CHAT_ID = 
+
+# --- 3. 錢包設定 ---
+DEFAULT_WALLET = 
+# =========================================================
+
+class PolyMonitorApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Polymarket 監控 V14 (賠率標籤優化版)")
+        self.root.geometry("580x850")
+        
+        self.is_running = False
+        self.is_paused = False
+        self.monitor_thread = None
+        self.notified_markets = set()
+        self.wallet_address = DEFAULT_WALLET
+        self.line_current_usage = 0 
+        
+        self.root.protocol('WM_DELETE_WINDOW', self.minimize_to_tray)
+        self.create_widgets()
+        self.init_system_check()
+
+    def create_widgets(self):
+        # --- 1. 錢包地址 ---
+        tk.Label(self.root, text="監控錢包地址:", font=("Arial", 10, "bold")).pack(pady=(10, 0))
+        self.lbl_wallet = tk.Entry(self.root, width=65)
+        self.lbl_wallet.insert(0, self.wallet_address)
+        self.lbl_wallet.config(state='readonly')
+        self.lbl_wallet.pack(pady=5)
+
+        # --- 2. 絕對目標價 ---
+        frame_target = tk.Frame(self.root)
+        frame_target.pack(pady=5)
+        tk.Label(frame_target, text="🎯 絕對目標價 (¢):", font=("Arial", 10, "bold")).pack(side=tk.LEFT)
+        self.entry_target_price = tk.Entry(frame_target, width=8, font=("Arial", 10))
+        self.entry_target_price.insert(0, "0.85")
+        self.entry_target_price.pack(side=tk.LEFT, padx=5)
+        tk.Label(frame_target, text="(達此價位必通知)", fg="gray").pack(side=tk.LEFT)
+
+        # --- 3. 策略參數設定區 ---
+        group_strategy = tk.LabelFrame(self.root, text="📊 策略參數設定 (請輸入百分比 %)", padx=10, pady=10, font=("Arial", 10, "bold"), fg="#333")
+        group_strategy.pack(pady=10, padx=10, fill="x")
+
+        # 表頭
+        tk.Label(group_strategy, text="策略類型", width=15, anchor="w", font=("Arial", 9, "bold")).grid(row=0, column=0)
+        tk.Label(group_strategy, text="第一階獲利", width=10, fg="green", font=("Arial", 9, "bold")).grid(row=0, column=1)
+        tk.Label(group_strategy, text="第二階獲利", width=10, fg="darkgreen", font=("Arial", 9, "bold")).grid(row=0, column=2)
+        tk.Label(group_strategy, text="止損警報", width=10, fg="red", font=("Arial", 9, "bold")).grid(row=0, column=3)
+
+        # [A] 高賠率
+        tk.Label(group_strategy, text="高賠 (成本<0.4)", anchor="w").grid(row=1, column=0, pady=5)
+        self.e_high_p1 = tk.Entry(group_strategy, width=8); self.e_high_p1.insert(0, "80")
+        self.e_high_p1.grid(row=1, column=1)
+        self.e_high_p2 = tk.Entry(group_strategy, width=8); self.e_high_p2.insert(0, "150")
+        self.e_high_p2.grid(row=1, column=2)
+        self.e_high_loss = tk.Entry(group_strategy, width=8); self.e_high_loss.insert(0, "-40")
+        self.e_high_loss.grid(row=1, column=3)
+
+        # [B] 中賠率
+        tk.Label(group_strategy, text="中賠 (0.4~0.7)", anchor="w").grid(row=2, column=0, pady=5)
+        self.e_mid_p1 = tk.Entry(group_strategy, width=8); self.e_mid_p1.insert(0, "40")
+        self.e_mid_p1.grid(row=2, column=1)
+        self.e_mid_p2 = tk.Entry(group_strategy, width=8); self.e_mid_p2.insert(0, "80")
+        self.e_mid_p2.grid(row=2, column=2)
+        self.e_mid_loss = tk.Entry(group_strategy, width=8); self.e_mid_loss.insert(0, "-25")
+        self.e_mid_loss.grid(row=2, column=3)
+
+        # [C] 低賠率
+        tk.Label(group_strategy, text="低賠 (成本>0.7)", anchor="w").grid(row=3, column=0, pady=5)
+        self.e_low_p1 = tk.Entry(group_strategy, width=8); self.e_low_p1.insert(0, "15")
+        self.e_low_p1.grid(row=3, column=1)
+        self.e_low_p2 = tk.Entry(group_strategy, width=8); self.e_low_p2.insert(0, "25")
+        self.e_low_p2.grid(row=3, column=2)
+        self.e_low_loss = tk.Entry(group_strategy, width=8); self.e_low_loss.insert(0, "-15")
+        self.e_low_loss.grid(row=3, column=3)
+
+        # --- 4. 按鈕區 ---
+        frame_btns = tk.Frame(self.root)
+        frame_btns.pack(pady=10)
+
+        self.btn_start = tk.Button(frame_btns, text="▶ 開始監控", bg="#90EE90", width=12, height=2, command=self.start_monitoring)
+        self.btn_start.pack(side=tk.LEFT, padx=5)
+
+        self.btn_pause = tk.Button(frame_btns, text="⏸ 暫停", state=tk.DISABLED, width=10, height=2, command=self.toggle_pause)
+        self.btn_pause.pack(side=tk.LEFT, padx=5)
+
+        self.btn_reload = tk.Button(frame_btns, text="🔄 重新讀取\n(套用新設定)", width=12, height=2, command=self.reload_positions)
+        self.btn_reload.pack(side=tk.LEFT, padx=5)
+
+        # --- 5. 狀態與日誌 ---
+        self.lbl_status = tk.Label(self.root, text="狀態: 系統檢查中...", fg="gray")
+        self.lbl_status.pack(pady=5)
+
+        self.log_area = scrolledtext.ScrolledText(self.root, height=16)
+        self.log_area.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
+
+    def log(self, msg):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.log_area.insert(tk.END, f"[{timestamp}] {msg}\n")
+        self.log_area.see(tk.END)
+
+    # ================= 網路發送邏輯 =================
+
+    def init_system_check(self):
+        def _check():
+            self.log("🔍 正在檢查通訊狀態...")
+            try:
+                url_tg = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getMe"
+                r = requests.get(url_tg, timeout=5)
+                if r.status_code == 200:
+                    bot_name = r.json().get('result', {}).get('first_name')
+                    self.root.after(0, lambda: self.log(f"✅ TG 連線成功 (機器人: {bot_name})"))
+                else:
+                    self.root.after(0, lambda: self.log("❌ TG 連線異常"))
+            except:
+                self.root.after(0, lambda: self.log("❌ TG 無法連線"))
+
+            try:
+                url_line = "https://api.line.me/v2/bot/message/quota/consumption"
+                headers = {"Authorization": f"Bearer {LINE_ACCESS_TOKEN}"}
+                r = requests.get(url_line, headers=headers)
+                if r.status_code == 200:
+                    usage = r.json().get('totalUsage', 0)
+                    self.line_current_usage = usage
+                    msg = f"✅ LINE 額度: {usage} / 200"
+                    if usage >= LINE_LIMIT_THRESHOLD: msg += " (已暫停發送)"
+                    self.root.after(0, lambda: self.log(msg))
+                else:
+                    self.root.after(0, lambda: self.log(f"❌ LINE 額度讀取失敗"))
+            except:
+                self.root.after(0, lambda: self.log("❌ LINE 無法連線"))
+            
+            self.root.after(0, lambda: self.lbl_status.config(text="狀態: 待機中"))
+        threading.Thread(target=_check).start()
+
+    def send_notification(self, text):
+        # 1. 發 TG
+        def _send_tg():
+            try:
+                url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+                params = {"chat_id": TELEGRAM_CHAT_ID, "text": text}
+                requests.get(url, params=params, timeout=5)
+            except: pass
+        threading.Thread(target=_send_tg).start()
+        
+        # 顯示在介面
+        self.log(f"📤 發送通知:\n{text.splitlines()[0]}...") 
+
+        # 2. 發 LINE (檢查額度)
+        if self.line_current_usage < LINE_LIMIT_THRESHOLD:
+            def _send_line():
+                try:
+                    url = "https://api.line.me/v2/bot/message/push"
+                    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {LINE_ACCESS_TOKEN}"}
+                    payload = {"to": LINE_USER_ID, "messages": [{"type": "text", "text": text}]}
+                    requests.post(url, headers=headers, data=json.dumps(payload))
+                    self.line_current_usage += 1
+                except: pass
+            threading.Thread(target=_send_line).start()
+
+    # ================= 核心邏輯 =================
+
+    def get_filtered_positions(self):
+        url = "https://data-api.polymarket.com/positions"
+        params = {"user": self.wallet_address, "limit": "100", "sortBy": "TOKENS", "sortDirection": "DESC"}
+        try:
+            r = requests.get(url, params=params, timeout=10)
+            if r.status_code == 200:
+                data = r.json()
+                valid_list = []
+                for pos in data:
+                    is_redeemable = pos.get("redeemable")
+                    if is_redeemable is False or str(is_redeemable).lower() == "false":
+                        if float(pos.get("size", 0)) > 0.1: valid_list.append(pos)
+                return valid_list
+            return []
+        except: return []
+
+    def get_strategy_params(self):
+        try:
+            return {
+                "high": {"p1": float(self.e_high_p1.get())/100, "p2": float(self.e_high_p2.get())/100, "loss": float(self.e_high_loss.get())/100},
+                "mid": {"p1": float(self.e_mid_p1.get())/100, "p2": float(self.e_mid_p2.get())/100, "loss": float(self.e_mid_loss.get())/100},
+                "low": {"p1": float(self.e_low_p1.get())/100, "p2": float(self.e_low_p2.get())/100, "loss": float(self.e_low_loss.get())/100},
+                "target": float(self.entry_target_price.get())
+            }
+        except: return None
+
+    def start_monitoring(self):
+        if self.is_running: return
+        if self.get_strategy_params() is None:
+            messagebox.showerror("錯誤", "設定請輸入數字")
+            return
+        self.is_running = True
+        self.is_paused = False
+        self.btn_start.config(state=tk.DISABLED, text="監控中...")
+        self.btn_pause.config(state=tk.NORMAL, text="⏸ 暫停")
+        self.monitor_thread = threading.Thread(target=self.run_loop, daemon=True)
+        self.monitor_thread.start()
+
+    def toggle_pause(self):
+        if self.is_paused:
+            self.is_paused = False
+            self.btn_pause.config(text="⏸ 暫停", bg="SystemButtonFace")
+            self.lbl_status.config(text=f"🟢 監控中", fg="green")
+        else:
+            self.is_paused = True
+            self.btn_pause.config(text="▶ 繼續", bg="yellow")
+            self.lbl_status.config(text="🟠 已暫停", fg="orange")
+
+    def reload_positions(self):
+        self.notified_markets.clear()
+        if not self.is_running: self.start_monitoring()
+        else: threading.Thread(target=self.send_initial_report, daemon=True).start()
+
+    def calculate_stats(self, pos):
+        """共用計算邏輯：倍數"""
+        avg = float(pos.get('avgPrice', 0))
+        cur = float(pos.get('curPrice', 0) or pos.get('currentPrice', 0))
+        
+        # 1. ROI
+        roi = (cur - avg) / avg if avg > 0 else 0
+        
+        # 2. 資產倍數
+        multiple = cur / avg if avg > 0 else 0
+        
+        # 3. 原始賠率 (買入當下的賠率)
+        odds_cost = round(1/avg, 2) if avg > 0 else 0
+        
+        return avg, cur, roi, multiple, odds_cost
+
+    def format_line_msg(self, pos):
+        """格式化單行訊息"""
+        title = pos.get('title', pos.get('market', {}).get('question', '未知題目'))
+        display_title = title[:40] + ("..." if len(title) > 40 else "")
+        
+        avg, cur, roi, multi, odds_cost = self.calculate_stats(pos)
+        
+        # 判斷策略與標籤
+        stype = "中賠"
+        if avg < 0.4: stype = "高賠"
+        elif avg > 0.7: stype = "低賠"
+        
+        # 組合標籤: [高賠 4.54]
+        tag_str = f"[{stype} {odds_cost}]"
+        
+        # 決定圖示: >=1 為 💰, <1 為 💸
+        icon = "💰" if multi >= 1.0 else "💸"
+        
+        # 組合訊息
+        line = (
+            f"🔹{tag_str} {display_title}\n"
+            f"   成本:{avg:.2f} ➡️ 現價:{cur:.2f} ({roi*100:+.0f}%)\n"
+            f"   {icon} 當前倍數: {multi:.2f}x\n" # 最後加\n製造空行
+        )
+        return line
+
+    def send_initial_report(self):
+        positions = self.get_filtered_positions()
+        msg_lines = [f"📋 【監控開始】(LINE: {self.line_current_usage}/200)\n"]
+        
+        if not positions:
+            msg_lines.append("⚠️ 目前無進行中持倉")
+        else:
+            for pos in positions:
+                line = self.format_line_msg(pos)
+                msg_lines.append(line)
+        self.send_notification("\n".join(msg_lines))
+
+    def run_loop(self):
+        self.send_initial_report()
+
+        while self.is_running:
+            if not self.is_paused:
+                params = self.get_strategy_params()
+                if not params:
+                    time.sleep(5); continue
+
+                positions = self.get_filtered_positions()
+                if positions:
+                    self.root.after(0, lambda: self.lbl_status.config(text=f"🟢 監控中 ({len(positions)} 筆) LINE:{self.line_current_usage}"))
+                    
+                    for pos in positions:
+                        try:
+                            unique_id = pos.get('asset')
+                            avg_price, cur_price, roi, multiple, odds_cost = self.calculate_stats(pos)
+                            if avg_price <= 0: continue
+                            
+                            # 訊息內文 (復用格式化函式)
+                            info_msg = self.format_line_msg(pos)
+
+                            # 策略分級
+                            p1, p2, loss_limit = 0, 0, 0
+                            strategy_name = ""
+                            if avg_price < 0.40:
+                                strategy_name = "高賠"
+                                p1=params['high']['p1']; p2=params['high']['p2']; loss_limit=params['high']['loss']
+                            elif avg_price > 0.70:
+                                strategy_name = "低賠"
+                                p1=params['low']['p1']; p2=params['low']['p2']; loss_limit=params['low']['loss']
+                            else:
+                                strategy_name = "中賠"
+                                p1=params['mid']['p1']; p2=params['mid']['p2']; loss_limit=params['mid']['loss']
+
+                            # 觸發判斷
+                            msg = ""
+                            log_prefix = ""
+                            notif_tag = ""
+
+                            # (1) 目標價達標
+                            if cur_price >= params['target']:
+                                notif_tag = "target_hit"
+                                if f"{unique_id}_{notif_tag}" not in self.notified_markets:
+                                    log_prefix = "🎯 [目標達標]"
+                                    msg = f"{log_prefix}\n{info_msg}"
+                                    self.notified_markets.add(f"{unique_id}_{notif_tag}")
+
+                            # (2) 第二階獲利
+                            elif roi >= p2:
+                                notif_tag = "roi_high"
+                                if f"{unique_id}_{notif_tag}" not in self.notified_markets:
+                                    log_prefix = f"🔥 [大賺-{strategy_name}]"
+                                    msg = f"{log_prefix} (達檻{p2*100:.0f}%)\n{info_msg}"
+                                    self.notified_markets.add(f"{unique_id}_{notif_tag}")
+
+                            # (3) 第一階獲利
+                            elif roi >= p1:
+                                notif_tag = "roi_low"
+                                if f"{unique_id}_{notif_tag}" not in self.notified_markets:
+                                    log_prefix = f"🟢 [獲利-{strategy_name}]"
+                                    msg = f"{log_prefix} (達檻{p1*100:.0f}%)\n{info_msg}"
+                                    self.notified_markets.add(f"{unique_id}_{notif_tag}")
+
+                            # (4) 止損
+                            elif roi <= loss_limit:
+                                notif_tag = "stop_loss"
+                                if f"{unique_id}_{notif_tag}" not in self.notified_markets:
+                                    log_prefix = "⚠️ [止損警報]"
+                                    msg = f"{log_prefix} (觸發{loss_limit*100:.0f}%)\n{info_msg}"
+                                    self.notified_markets.add(f"{unique_id}_{notif_tag}")
+
+                            if msg:
+                                self.send_notification(msg)
+
+                        except Exception as e:
+                            print(e)
+                else:
+                    self.root.after(0, lambda: self.lbl_status.config(text="⚪ 暫無進行中持倉"))
+
+            for _ in range(10): 
+                if not self.is_running: break
+                time.sleep(1)
+
+    def minimize_to_tray(self):
+        self.root.withdraw()
+        image = Image.new('RGB', (64, 64), color=(255, 255, 255))
+        dc = ImageDraw.Draw(image)
+        dc.ellipse((10, 10, 54, 54), fill="blue")
+        menu = pystray.Menu(pystray.MenuItem('顯示視窗', self.show_window), pystray.MenuItem('結束程式', self.quit_app))
+        self.icon = pystray.Icon("PolyMonitor", image, "Polymarket 監控中", menu)
+        threading.Thread(target=self.icon.run, daemon=True).start()
+
+    def show_window(self, icon, item):
+        self.icon.stop()
+        self.root.after(0, self.root.deiconify)
+
+    def quit_app(self, icon, item):
+        self.is_running = False
+        self.icon.stop()
+        self.root.quit()
+        os._exit(0)
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = PolyMonitorApp(root)
+    root.mainloop()
