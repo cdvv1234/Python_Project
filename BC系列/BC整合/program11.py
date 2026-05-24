@@ -72,7 +72,7 @@ async def scrape_site_process(site, page, start_datetime, end_datetime, username
                     chat_page = await context.new_page()
                     special_chat_page = chat_page
 
-                    login_url = "https://chatbe.cywdsd2505.com/"   # 如果 YD 是不同網域請再告訴我
+                    login_url = ""   # 如果 YD 是不同網域請再告訴我
                     print(f"[{site_name}] 另開新分頁登入 → {login_url}")
                     await chat_page.goto(login_url, wait_until="networkidle", timeout=60000)
 
@@ -84,7 +84,7 @@ async def scrape_site_process(site, page, start_datetime, end_datetime, username
                     await chat_page.click("button:has-text('登录')")
                     await asyncio.sleep(4)
 
-                    chat_record_url = "https://chatbe.cywdsd2505.com/chatRecord"
+                    chat_record_url = ""
                     print(f"[{site_name}] 登入完成，導航至聊天記錄頁 → {chat_record_url}")
                     await chat_page.goto(chat_record_url, wait_until="networkidle", timeout=60000)
                     await asyncio.sleep(2)
@@ -546,8 +546,8 @@ def run_program_11(root, selected_sites, pages, callback):
                 if site_name in ["TS", "SY", "YD"]:
                     if do_special:
                         tasks.append(scrape_site_process(site, page, start_datetime, end_datetime, 
-                                                        username="data001", 
-                                                        password="a123456"))
+                                                        username="", 
+                                                        password=""))
                     else:
                         print(f"[{site_name}] 選擇跳過抓取")
                 else:
