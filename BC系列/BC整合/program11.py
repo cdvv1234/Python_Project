@@ -166,7 +166,7 @@ async def scrape_site_process(site, page, start_datetime, end_datetime, username
                                     if img:
                                         src = await img.get_attribute("src")
                                         if src:
-                                            d_c = src if src.startswith("http") else f"https://chatbe.cywdsd2505.com{src}"
+                                            d_c = src if src.startswith("http") else f"{src}"
                                     else:
                                         emotion = await content_cell.query_selector("span.chat-emotion")
                                         if emotion:
