@@ -8,7 +8,7 @@ import re
 from datetime import datetime, timedelta
 
 # 支援的站台 (保留原過濾邏輯)
-SUPPORTED_SITE_NAMES = ["CJ", "CY"]
+SUPPORTED_SITE_NAMES = ["CJ", "CY", "YD"]
 
 # --- 日期選擇視窗 ---
 def select_dates(parent):
@@ -100,6 +100,7 @@ async def set_date_async(page, selector, date_str):
 # --- 單一站台處理程序 ---
 async def process_site_async(site, page, start_date, end_date):
     lucky_draw_url = f"{site['url'].rstrip('/')}/LuckyDrawActivity"
+    print(f"[{site}] 導航至 → {lucky_draw_url}")
     for attempt in range(2):
         try:
             await page.goto(lucky_draw_url, wait_until="domcontentloaded", timeout=30000)
@@ -110,8 +111,8 @@ async def process_site_async(site, page, start_date, end_date):
             await asyncio.sleep(2)
 
     try:
-        summary_btn = page.locator("a:has-text('领取统计')").first
-        await page.wait_for_selector("a:has-text('领取统计')", timeout=10000)
+        summary_btn = page.locator("#content > div.container-fluid > div > div.card-header.py-3 > div > div:nth-child(2) > a").first
+        await page.wait_for_selector("#content > div.container-fluid > div > div.card-header.py-3 > div > div:nth-child(2) > a", timeout=10000)
         await summary_btn.click()
         await asyncio.sleep(2)
     except: return []
