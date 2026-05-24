@@ -22,7 +22,7 @@ class MainApp:
     def __init__(self, root):
         self.root = root
         self.root.title("程式選擇器 (全並行防錯版)")
-        self.root.geometry("800x500")
+        self.root.geometry("800x580")
         
         # 核心狀態控制
         self.is_running = False 
@@ -93,12 +93,13 @@ class MainApp:
             ("投注與盈亏抓取", lambda: self.safe_run_program(lambda cb: program2.run_program_2(self.root, self.selected_sites, self.pages, cb))),
             ("幸運抽獎抓取", lambda: self.safe_run_program(lambda cb: program3.run_program_3(self.root, self.selected_sites, self.pages, cb))),
             ("審單DATA抓取", lambda: self.safe_run_program(lambda cb: program4.run_program_4(self.root, self.selected_sites, self.pages, cb))),
-            ("直屬及下級盈虧查詢", lambda: self.safe_run_program(lambda cb: program5.run_program_5(self.root, self.selected_sites, self.pages, cb))),
-            ("招商觀察", lambda: self.safe_run_program(lambda cb: program6.run_program_6(self.root, self.selected_sites, self.pages, cb))),
+            ("個人盈虧查詢", lambda: self.safe_run_program(lambda cb: program5.run_program_5(self.root, self.selected_sites, self.pages, cb))),
+            ("招商觀察(團隊盈虧)", lambda: self.safe_run_program(lambda cb: program6.run_program_6(self.root, self.selected_sites, self.pages, cb))),
             ("帳戶管理抓取", lambda: self.safe_run_program(lambda cb: program7.run_program_7(self.root, self.selected_sites, self.pages, cb))),
-            ("投注紀錄全抓取", lambda: self.safe_run_program(lambda cb: program8.run_program_8(self.root, self.selected_sites, self.pages, cb))),
+            ("投注紀錄全抓取(未改)", lambda: self.safe_run_program(lambda cb: program8.run_program_8(self.root, self.selected_sites, self.pages, cb))),
             ("彩種玩法統計", lambda: self.safe_run_program(lambda cb: program9.run_program_9(self.root, self.selected_sites, self.pages, cb))),
             ("彩種統計", lambda: self.safe_run_program(lambda cb: program10.run_program_10(self.root, self.selected_sites, self.pages, cb))),
+            ("客服評分抓取", lambda: self.safe_run_program(lambda cb: program11.run_program_11(self.root, self.selected_sites, self.pages, cb)))
         ]
 
         for i, (text, cmd) in enumerate(buttons):
@@ -127,7 +128,7 @@ class MainApp:
         site_grid = tk.Frame(window)
         site_grid.pack(pady=20)
 
-        site_order = [["TC", "FL", "XH"], ["TF", "WX", "CJ"], ["TS", "XC", "CY"], ["SY", "", ""]]
+        site_order = [["TC", "FL", "CJ"], ["TF", "WX", "CY"], ["TS", "XC", "YD"], ["SY", "XH", ""]]
         self.site_vars = {}
         for r, row_sites in enumerate(site_order):
             for c, name in enumerate(row_sites):
@@ -226,5 +227,4 @@ class MainApp:
 if __name__ == "__main__":
     root = tk.Tk()
     app = MainApp(root)
-
     root.mainloop()
