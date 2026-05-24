@@ -4,8 +4,7 @@ from tkcalendar import DateEntry
 import pandas as pd
 from datetime import datetime, timedelta
 import asyncio
-import os
-import time
+import program6_1, program6_2
 
 def run_program_6(root, selected_sites, pages, callback):
     def create_input_window():
@@ -182,7 +181,7 @@ def run_program_6(root, selected_sites, pages, callback):
                 if save_path:
                     # 排序順序定義
                     cat_order = ["彩票", "真人電子", "體育", "棋牌"]
-                    site_order = ["TC", "TF", "TS", "SY", "FL", "WX", "XC", "XH", "CJ", "CY"]
+                    site_order = ["TC", "TF", "TS", "SY", "FL", "WX", "XC", "XH", "CJ", "CY", "YD"]
                     
                     ordered_keys = [f"{s}_{c}" for c in cat_order for s in site_order if f"{s}_{c}" in all_results]
 
@@ -196,7 +195,39 @@ def run_program_6(root, selected_sites, pages, callback):
         def start_task():
             import __main__
             if hasattr(__main__, 'app'): __main__.app.run_async(_async_process())
+        # 原有的確認查詢按鈕
+        tk.Button(input_window, text="確認查詢", 
+                  command=start_task, 
+                  bg="#4CAF50", fg="white", 
+                  font=("Arial", 12, "bold"), height=2).pack(pady=20)
 
-        tk.Button(input_window, text="確認查詢", command=start_task, bg="#4CAF50", fg="white", font=("Arial", 12, "bold"), height=2).pack(pady=20)
+        # ==================== 新增的按鈕（精簡版） ====================
+        tk.Button(input_window, text="阿恩团队统计表", 
+                  command=lambda: program6_1.run_program_6_1(
+                      root, 
+                      selected_sites, 
+                      pages, 
+                      excel_path.get(),           # 傳入已選擇的 Excel 路徑
+                      start_date_entry.get(),     # 傳入開始日期
+                      end_date_entry.get(),       # 傳入結束日期
+                      callback                    # 完成後的 callback
+                  ),
+                  bg="#FF9800", fg="white", 
+                  font=("Arial", 11, "bold"), height=2).pack(pady=10)
+        # ==================== 新增的按鈕（下級名單） ====================        
+        tk.Button(input_window, text="招商觀察(含下級名單)", 
+                        command=lambda: program6_2.run_program_6_2(
+                            root, 
+                            selected_sites, 
+                            pages, 
+                            excel_path.get(), 
+                            start_date_entry.get(), 
+                            end_date_entry.get(), 
+                            check_vars,          # ← 新增傳入勾選狀態
+                            callback
+                        ),
+                        bg="#9C27B0", fg="white", 
+                        font=("Arial", 11, "bold"), height=2).pack(pady=10)
+            
 
     create_input_window()
