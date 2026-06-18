@@ -1,0 +1,17 @@
+虛擬環境
+python -m venv venv
+Set-ExecutionPolicy RemoteSigned
+.\venv\Scripts\activate
+deactivate
+
+
+pip install playwright pandas openpyxl tkcalendar auto-py-to-exe
+playwright install chromium
+
+C:\Users\Administrator\AppData\Local\ms-playwright
+%USERPROFILE%\AppData\Local\ms-playwright
+C:\Users\Administrator\AppData\Local\Programs\Python\Python313\Lib\site-packages\playwright\driver\package\
+.local-browsers
+
+pip install -r requirements.txt
+pip freeze > requirements.txt
